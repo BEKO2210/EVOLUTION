@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evolution Clicker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Partikel-Hintergrund */
+        .particles {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0;
+        }
+        .particle {
+            position: absolute; width: 2px; height: 2px;
+            background: rgba(0, 255, 150, 0.3); border-radius: 50%;
+            animation: float 10s infinite linear;
+        }
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* Layout */
+        .game-container {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            height: 100vh; position: relative; z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            position: fixed; top: 0; left: 0; right: 0;
+            background: rgba(10, 10, 10, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 255, 150, 0.2);
+            padding: 10px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+        }
+        .header h1 {
+            font-size: 1.2rem; color: #00ff96;
+            text-shadow: 0 0 10px rgba(0, 255, 150, 0.5);
+        }
+        .stats {
+            display: flex; gap: 20px;
+        }
+        .stat {
+            text-align: right;
+        }
+        .stat-label {
+            font-size: 0.7rem; color: #666; text-transform: uppercase;
+        }
+        .stat-value {
+            font-size: 1rem; color: #00ff96; font-weight: 700;
+        }
+
+        /* Seitenpanels */
+        .panel {
+            padding: 80px 15px 20px;
+            overflow-y: auto;
+            border-right: 1px solid rgba(0, 255, 150, 0.1);
+        }
+        .panel-right {
+            border-right: none;
+            border-left: 1px solid rgba(0, 255, 150, 0.1);
+        }
+        .panel-title {
+            font-size: 0.9rem; color: #00ff96;
+            text-transform: uppercase; margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        /* Upgrades */
+        .upgrade {
+            background: rgba(0, 255, 150, 0.05);
+            border: 1px solid rgba(0, 255, 150, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .upgrade:hover {
+            background: rgba(0, 255, 150, 0.1);
+            border-color: rgba(0, 255, 150, 0.4);
+            transform: translateX(5px);
+        }
+        .upgrade.locked {
+            opacity: 0.5; cursor: not-allowed;
+        }
+        .upgrade.locked:hover {
+            transform: none; background: rgba(0, 255, 150, 0.05);
+        }
+        .upgrade-name {
+            font-weight: 700; color: #fff; font-size: 0.9rem;
+        }
+        .upgrade-desc {
+            font-size: 0.75rem; color: #888; margin-top: 3px;
+        }
+        .upgrade-cost {
+            font-size: 0.8rem; color: #00ff96; margin-top: 5px;
+        }
+        .upgrade-count {
+            position: absolute; right: 12px; top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.5rem; color: rgba(0, 255, 150, 0.3);
+            font-weight: 700;
+        }
+
+        /* Center - Zelle */
+        .center {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding-top: 60px; position: relative;
+        }
+        .cell-container {
+            position: relative; width: 300px; height: 300px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        .cell {
+            position: relative; transition: all 0.5s ease;
+        }
+        .cell-core {
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #00ff96, #008f58);
+            box-shadow: 0 0 60px rgba(0, 255, 150, 0.4), inset 0 0 20px rgba(255, 255, 255, 0.2);
+            animation: pulse 2s infinite ease-in-out;
+            position: relative;
+        }
+        .cell-core::before {
+            content: ''; position: absolute; top: 20%; left: 25%;
+            width: 30%; height: 20%; background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%; transform: rotate(-45deg);
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .cell-clicked {
+            animation: clickPulse 0.3s ease;
+        }
+        @keyframes clickPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+
+        /* DNA-Strang um Zelle */
+        .dna-ring {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(0, 255, 150, 0.3);
+            border-radius: 50%;
+            animation: rotate 20s linear infinite;
+        }
+        .dna-ring:nth-child(2) {
+            width: 160px; height: 160px;
+            animation-duration: 15s; animation-direction: reverse;
+            border-style: dashed;
+        }
+        .dna-ring:nth-child(3) {
+            width: 200px; height: 200px;
+            animation-duration: 25s;
+            border-color: rgba(0, 255, 150, 0.15);
+        }
+        @keyframes rotate {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* Schwimmende +DNA Texte */
+        .float-text {
+            position: absolute;
+            color: #00ff96; font-weight: 700; font-size: 1.2rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 0 0 10px rgba(0, 255, 150, 0.8);
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-80px) scale(1.5); }
+        }
+
+        .click-info {
+            margin-top: 20px; text-align: center;
+        }
+        .click-info p {
+            color: #666; font-size: 0.85rem;
+        }
+        .click-power {
+            color: #00ff96; font-size: 1.1rem; font-weight: 700;
+        }
+
+        /* Evolution-Status */
+        .evolution-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(10, 10, 10, 0.95);
+            border-top: 1px solid rgba(0, 255, 150, 0.2);
+            padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+        }
+        .evolution-info {
+            display: flex; gap: 20px; align-items: center;
+        }
+        .stage-name {
+            color: #00ff96; font-weight: 700; font-size: 1rem;
+        }
+        .stage-progress {
+            width: 300px; height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px; overflow: hidden;
+        }
+        .stage-progress-fill {
+            height: 100%; background: linear-gradient(90deg, #00ff96, #008f58);
+            border-radius: 4px; transition: width 0.5s;
+        }
+        .prestige-btn {
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+            color: white; border: none; border-radius: 20px;
+            cursor: pointer; font-weight: 700;
+            transition: all 0.3s;
+        }
+        .prestige-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+        .prestige-btn:disabled {
+            opacity: 0.3; cursor: not-allowed; transform: none;
+        }
+
+        /* Mutation-Popups */
+        .mutation-popup {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 10, 0.95);
+            border: 2px solid #00ff96;
+            border-radius: 20px; padding: 30px;
+            text-align: center; z-index: 1000;
+            box-shadow: 0 0 50px rgba(0, 255, 150, 0.3);
+            display: none;
+        }
+        .mutation-popup.show { display: block; animation: popupIn 0.5s ease; }
+        @keyframes popupIn {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        .mutation-popup h2 {
+            color: #00ff96; font-size: 1.5rem; margin-bottom: 10px;
+        }
+        .mutation-popup p { color: #888; margin-bottom: 20px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 255, 150, 0.3); border-radius: 3px; }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .game-container { grid-template-columns: 1fr; }
+            .panel, .panel-right { display: none; }
+            .cell-container { width: 250px; height: 250px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Partikel-Hintergrund -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>🔬 Evolution Clicker</h1>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-label">DNA-Punkte</div>
+                <div class="stat-value" id="dna">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Pro Sekunde</div>
+                <div class="stat-value" id="dps">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Klick-Power</div>
+                <div class="stat-value" id="clickPower">1</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Container -->
+    <div class="game-container">
+        <!-- Linke Panel: Automatische Upgrades -->
+        <div class="panel">
+            <div class="panel-title">🧬 Automatisch</div>
+            <div id="autoUpgrades"></div>
+        </div>
+
+        <!-- Center: Zelle -->
+        <div class="center">
+            <div class="cell-container" id="cellContainer">
+                <div class="dna-ring"></div>
+                <div class="dna-ring"></div>
+                <div class="dna-ring"></div>
+                <div class="cell" id="cell">
+                    <div class="cell-core" id="cellCore"></div>
+                </div>
+            </div>
+            <div class="click-info">
+                <p>Klicke auf die Zelle für DNA-Punkte</p>
+                <div class="click-power">+<span id="clickValue">1</span> DNA</div>
+            </div>
+        </div>
+
+        <!-- Rechte Panel: Klick-Upgrades -->
+        <div class="panel panel-right">
+            <div class="panel-title">⚡ Klick-Power</div>
+            <div id="clickUpgrades"></div>
+        </div>
+    </div>
+
+    <!-- Evolution-Bar -->
+    <div class="evolution-bar">
+        <div class="evolution-info">
+            <div class="stage-name" id="stageName">🔬 Einzeller</div>
+            <div class="stage-progress">
+                <div class="stage-progress-fill" id="stageProgress" style="width: 0%"></div>
+            </div>
+        </div>
+        <button class="prestige-btn" id="prestigeBtn" onclick="prestige()" disabled>
+            🔄 Prestige (x<span id="prestigeMult">2</span>)
+        </button>
+    </div>
+
+    <!-- Mutation Popup -->
+    <div class="mutation-popup" id="mutationPopup">
+        <h2>🧬 Mutation!</h2>
+        <p id="mutationText">Deine Zelle hat sich weiterentwickelt!</p>
+        <button class="cta-button" onclick="closeMutation()">Weiter</button>
+    </div>
+
+    <style>
+        .cta-button {
+            padding: 10px 30px;
+            background: linear-gradient(135deg, #00ff96, #008f58);
+            color: white; border: none; border-radius: 25px;
+            cursor: pointer; font-weight: 700;
+        }
+    </style>
+
+    <script>
+        // ===================== GAME STATE =====================
+        let game = {
+            dna: 0,
+            totalDna: 0,
+            clickPower: 1,
+            dps: 0,
+            prestigePoints: 0,
+            prestigeMultiplier: 1,
+            stage: 0,
+            lastSave: Date.now()
+        };
+
+        // Stufen der Evolution
+        const stages = [
+            { name: "🔬 Einzeller", req: 0, color: "#00ff96" },
+            { name: "🦠 Bakterium", req: 1000, color: "#00cc77" },
+            { name: "🧫 Amöbe", req: 10000, color: "#0099aa" },
+            { name: "🪱 Wurm", req: 100000, color: "#6666ff" },
+            { name: "🐟 Fisch", req: 1000000, color: "#ff66ff" },
+            { name: "🐸 Amphibie", req: 10000000, color: "#ff9966" },
+            { name: "🦎 Reptil", req: 100000000, color: "#ff6633" },
+            { name: "🐦 Vogel", req: 1000000000, color: "#ffff66" },
+            { name: "🐁 Säugetier", req: 10000000000, color: "#ff6666" },
+            { name: "🧠 Mensch", req: 100000000000, color: "#ffffff" }
+        ];
+
+        // Automatische Upgrades
+        const autoUpgrades = [
+            { id: 'mitochondria', name: 'Mitochondrien', desc: 'Produzieren ATP', baseCost: 10, baseDps: 0.5, count: 0 },
+            { id: 'ribosome', name: 'Ribosomen', desc: 'Protein-Synthese', baseCost: 100, baseDps: 3, count: 0 },
+            { id: 'nucleus', name: 'Zellkern', desc: 'Kontrolliert die Zelle', baseCost: 500, baseDps: 10, count: 0 },
+            { id: 'flagella', name: 'Geißeln', desc: 'Bewegung der Zelle', baseCost: 2500, baseDps: 40, count: 0 },
+            { id: 'chloroplast', name: 'Chloroplasten', desc: 'Photosynthese', baseCost: 12000, baseDps: 150, count: 0 },
+            { id: 'organelle', name: 'Organellen', desc: 'Spezialisierte Funktionen', baseCost: 60000, baseDps: 500, count: 0 },
+            { id: 'tissue', name: 'Gewebe', desc: 'Zellverbund', baseCost: 300000, baseDps: 2000, count: 0 },
+            { id: 'organ', name: 'Organe', desc: 'Komplexe Strukturen', baseCost: 1500000, baseDps: 8000, count: 0 }
+        ];
+
+        // Klick-Upgrades
+        const clickUpgrades = [
+            { id: 'enzyme', name: 'Enzyme', desc: '+1 Klick-Power', baseCost: 50, power: 1, count: 0 },
+            { id: 'catalyst', name: 'Katalysatoren', desc: '+5 Klick-Power', baseCost: 300, power: 5, count: 0 },
+            { id: 'hormone', name: 'Hormone', desc: '+20 Klick-Power', baseCost: 1500, power: 20, count: 0 },
+            { id: 'neurotransmitter', name: 'Neurotransmitter', desc: '+100 Klick-Power', baseCost: 8000, power: 100, count: 0 },
+            { id: 'synapse', name: 'Synapsen', desc: '+500 Klick-Power', baseCost: 40000, power: 500, count: 0 }
+        ];
+
+        // ===================== UTILS =====================
+        function formatNumber(num) {
+            if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return Math.floor(num).toString();
+        }
+
+        function getCost(upgrade) {
+            return Math.floor(upgrade.baseCost * Math.pow(1.15, upgrade.count));
+        }
+
+        // ===================== RENDER =====================
+        function render() {
+            document.getElementById('dna').textContent = formatNumber(game.dna);
+            document.getElementById('dps').textContent = formatNumber(game.dps) + '/s';
+            document.getElementById('clickPower').textContent = formatNumber(game.clickPower);
+            document.getElementById('clickValue').textContent = formatNumber(game.clickPower);
+
+            // Auto Upgrades
+            const autoContainer = document.getElementById('autoUpgrades');
+            autoContainer.innerHTML = autoUpgrades.map(u => {
+                const cost = getCost(u);
+                const canAfford = game.dna >= cost;
+                return `
+                    <div class="upgrade ${canAfford ? '' : 'locked'}" onclick="${canAfford ? `buyAuto('${u.id}')` : ''}">
+                        <div class="upgrade-name">${u.name}</div>
+                        <div class="upgrade-desc">${u.desc} (+${formatNumber(u.baseDps * game.prestigeMultiplier)}/s)</div>
+                        <div class="upgrade-cost">${formatNumber(cost)} DNA</div>
+                        <div class="upgrade-count">${u.count}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Click Upgrades
+            const clickContainer = document.getElementById('clickUpgrades');
+            clickContainer.innerHTML = clickUpgrades.map(u => {
+                const cost = getCost(u);
+                const canAfford = game.dna >= cost;
+                return `
+                    <div class="upgrade ${canAfford ? '' : 'locked'}" onclick="${canAfford ? `buyClick('${u.id}')` : ''}">
+                        <div class="upgrade-name">${u.name}</div>
+                        <div class="upgrade-desc">${u.desc}</div>
+                        <div class="upgrade-cost">${formatNumber(cost)} DNA</div>
+                        <div class="upgrade-count">${u.count}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Evolution
+            updateEvolution();
+        }
+
+        function updateEvolution() {
+            const currentStage = stages[game.stage];
+            const nextStage = stages[game.stage + 1];
+            
+            document.getElementById('stageName').textContent = currentStage.name;
+            document.getElementById('stageName').style.color = currentStage.color;
+
+            if (nextStage) {
+                const progress = Math.min(100, (game.totalDna / nextStage.req) * 100);
+                document.getElementById('stageProgress').style.width = progress + '%';
+                
+                if (game.totalDna >= nextStage.req) {
+                    evolve();
+                }
+            } else {
+                document.getElementById('stageProgress').style.width = '100%';
+            }
+
+            // Prestige
+            const prestigeCost = 100000 * Math.pow(10, game.prestigePoints);
+            const prestigeBtn = document.getElementById('prestigeBtn');
+            if (game.totalDna >= prestigeCost) {
+                prestigeBtn.disabled = false;
+                document.getElementById('prestigeMult').textContent = Math.pow(2, game.prestigePoints + 1);
+            } else {
+                prestigeBtn.disabled = true;
+            }
+        }
+
+        // ===================== ACTIONS =====================
+        function clickCell(e) {
+            const dnaGain = game.clickPower * game.prestigeMultiplier;
+            game.dna += dnaGain;
+            game.totalDna += dnaGain;
+
+            // Visueller Effekt
+            const cell = document.getElementById('cellCore');
+            cell.classList.remove('cell-clicked');
+            void cell.offsetWidth;
+            cell.classList.add('cell-clicked');
+
+            // Floating Text
+            const floatText = document.createElement('div');
+            floatText.className = 'float-text';
+            floatText.textContent = '+' + formatNumber(dnaGain);
+            floatText.style.left = (e.clientX - 20) + 'px';
+            floatText.style.top = (e.clientY - 30) + 'px';
+            document.body.appendChild(floatText);
+            setTimeout(() => floatText.remove(), 1000);
+
+            render();
+        }
+
+        function buyAuto(id) {
+            const upgrade = autoUpgrades.find(u => u.id === id);
+            const cost = getCost(upgrade);
+            if (game.dna >= cost) {
+                game.dna -= cost;
+                upgrade.count++;
+                game.dps += upgrade.baseDps * game.prestigeMultiplier;
+                render();
+            }
+        }
+
+        function buyClick(id) {
+            const upgrade = clickUpgrades.find(u => u.id === id);
+            const cost = getCost(upgrade);
+            if (game.dna >= cost) {
+                game.dna -= cost;
+                upgrade.count++;
+                game.clickPower += upgrade.power;
+                render();
+            }
+        }
+
+        function evolve() {
+            game.stage++;
+            const newStage = stages[game.stage];
+            
+            // Popup
+            document.getElementById('mutationText').textContent = 
+                `Deine Zelle hat sich zu einem ${newStage.name} entwickelt!`;
+            document.getElementById('mutationPopup').classList.add('show');
+
+            // Zelle verändert Farbe
+            document.getElementById('cellCore').style.background = 
+                `radial-gradient(circle at 30% 30%, ${newStage.color}, #008f58)`;
+            document.getElementById('cellCore').style.boxShadow = 
+                `0 0 60px ${newStage.color}66, inset 0 0 20px rgba(255, 255, 255, 0.2)`;
+
+            saveGame();
+        }
+
+        function closeMutation() {
+            document.getElementById('mutationPopup').classList.remove('show');
+        }
+
+        function prestige() {
+            const prestigeCost = 100000 * Math.pow(10, game.prestigePoints);
+            if (game.totalDna >= prestigeCost) {
+                game.prestigePoints++;
+                game.prestigeMultiplier = Math.pow(2, game.prestigePoints);
+                
+                // Reset
+                game.dna = 0;
+                game.totalDna = 0;
+                game.clickPower = 1;
+                game.dps = 0;
+                game.stage = 0;
+                
+                autoUpgrades.forEach(u => u.count = 0);
+                clickUpgrades.forEach(u => u.count = 0);
+
+                // Reset Zelle
+                document.getElementById('cellCore').style.background = 
+                    'radial-gradient(circle at 30% 30%, #00ff96, #008f58)';
+                document.getElementById('cellCore').style.boxShadow = 
+                    '0 0 60px rgba(0, 255, 150, 0.4), inset 0 0 20px rgba(255, 255, 255, 0.2)';
+
+                alert(`Prestige! x${game.prestigeMultiplier} Multiplier aktiviert!`);
+                render();
+            }
+        }
+
+        // ===================== GAME LOOP =====================
+        setInterval(() => {
+            if (game.dps > 0) {
+                const gain = game.dps;
+                game.dna += gain;
+                game.totalDna += gain;
+                render();
+            }
+        }, 1000);
+
+        // ===================== SAVE/LOAD =====================
+        function saveGame() {
+            const saveData = {
+                game: game,
+                autoUpgrades: autoUpgrades.map(u => ({ id: u.id, count: u.count })),
+                clickUpgrades: clickUpgrades.map(u => ({ id: u.id, count: u.count }))
+            };
+            localStorage.setItem('evolutionClicker', JSON.stringify(saveData));
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem('evolutionClicker');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    Object.assign(game, data.game);
+                    
+                    data.autoUpgrades.forEach(saved => {
+                        const upgrade = autoUpgrades.find(u => u.id === saved.id);
+                        if (upgrade) {
+                            upgrade.count = saved.count;
+                            game.dps += upgrade.baseDps * saved.count * game.prestigeMultiplier;
+                        }
+                    });
+                    
+                    data.clickUpgrades.forEach(saved => {
+                        const upgrade = clickUpgrades.find(u => u.id === saved.id);
+                        if (upgrade) {
+                            upgrade.count = saved.count;
+                            game.clickPower += upgrade.power * saved.count;
+                        }
+                    });
+
+                    // Zelle-Farbe wiederherstellen
+                    if (game.stage > 0 && game.stage < stages.length) {
+                        const color = stages[game.stage].color;
+                        document.getElementById('cellCore').style.background = 
+                            `radial-gradient(circle at 30% 30%, ${color}, #008f58)`;
+                    }
+                } catch(e) {
+                    console.log('Kein Savegame gefunden');
+                }
+            }
+            render();
+        }
+
+        // Auto-Save alle 30 Sekunden
+        setInterval(saveGame, 30000);
+
+        // ===================== INIT =====================
+        document.getElementById('cellContainer').addEventListener('click', clickCell);
+
+        // Partikel generieren
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 50; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 10 + 's';
+            particle.style.animationDuration = (8 + Math.random() * 4) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Spiel laden
+        loadGame();
+    </script>
+</body>
+</html>
