@@ -609,6 +609,164 @@
         .mutation.on { display: block; animation: toastIn 0.3s ease; }
         .mutation b { color: var(--crit); }
 
+        /* ===== ACTIVE ABILITIES BAR ===== */
+        .abilities {
+            display: flex;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(8, 11, 20, 0.85);
+            border-top: 1px solid var(--line);
+            backdrop-filter: blur(14px);
+            justify-content: center;
+        }
+        .ability {
+            position: relative;
+            flex: 1;
+            max-width: 70px;
+            aspect-ratio: 1/1;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.03);
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            overflow: hidden;
+            transition: transform 0.1s, border-color 0.2s;
+            color: var(--text);
+        }
+        .ability:active { transform: scale(0.94); }
+        .ability.ready {
+            border-color: rgba(0,255,163,0.5);
+            box-shadow: 0 0 14px rgba(0,255,163,0.18);
+        }
+        .ability.ready .ab-icon { animation: abReady 1.4s infinite; }
+        @keyframes abReady { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+        .ability.cooling { opacity: 0.65; cursor: not-allowed; }
+        .ability.active {
+            border-color: var(--gold);
+            background: linear-gradient(135deg, rgba(255,210,74,0.18), rgba(0,255,163,0.08));
+            box-shadow: 0 0 18px rgba(255,210,74,0.4);
+        }
+        .ab-icon { font-size: 1.5rem; line-height: 1; }
+        .ab-name { font-size: 0.5rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; font-weight: 700; }
+        .ability.ready .ab-name { color: var(--accent); }
+        .ability.active .ab-name { color: var(--gold); }
+        .ab-cd {
+            position: absolute;
+            inset: 0;
+            background: conic-gradient(rgba(0,0,0,0.55) 0deg, rgba(0,0,0,0.55) var(--cd, 0deg), transparent var(--cd, 0deg));
+            border-radius: 14px;
+            pointer-events: none;
+            transition: background 0.1s;
+        }
+        .ab-cd-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 0 6px #000;
+            pointer-events: none;
+        }
+        .ab-cd-text:empty { display: none; }
+
+        /* ===== CELL DIVISION ===== */
+        .division-card {
+            background: linear-gradient(135deg, rgba(79,209,255,0.12), rgba(255,93,162,0.08));
+            border: 1px solid rgba(79,209,255,0.35);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 10px;
+        }
+        .division-card h3 {
+            color: var(--accent-2);
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .division-card p {
+            color: var(--text-dim);
+            font-size: 0.72rem;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        .division-stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .div-stat { padding: 4px 8px; }
+        .div-stat-num {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--accent-2);
+            font-variant-numeric: tabular-nums;
+        }
+        .div-stat-lbl {
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .division-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, var(--accent-2), #2599d4);
+            color: #001;
+            border: none;
+            border-radius: 99px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .division-btn:active { transform: scale(0.96); }
+        .division-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-dim);
+        }
+
+        /* Division animation (SVG-overlay) */
+        @keyframes divisionSplit {
+            0% { transform: scaleX(1) scaleY(1); }
+            30% { transform: scaleX(1.3) scaleY(0.7); }
+            60% { transform: scaleX(0.6) scaleY(1.4) translateY(-8px); }
+            100% { transform: scaleX(1) scaleY(1); }
+        }
+        .cell-stage.dividing svg { animation: divisionSplit 1.2s ease-in-out; }
+
+        /* DNA Drops (mini event) */
+        .dna-drop {
+            position: absolute;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff, var(--accent-2) 60%, #1a6a99);
+            box-shadow: 0 0 14px rgba(79,209,255,0.7);
+            cursor: pointer;
+            z-index: 5;
+            pointer-events: auto;
+            animation: dropFloat 8s linear forwards;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem;
+        }
+        @keyframes dropFloat {
+            0% { transform: translate(0, -100px) scale(0); opacity: 0; }
+            10% { transform: translate(0, 0) scale(1); opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(var(--dx, 0), var(--dy, 200px)) scale(0.5); opacity: 0; }
+        }
+
         .hidden { display: none !important; }
 
         /* Scrollbar */
@@ -674,6 +832,8 @@
     </div>
 </div>
 
+<div class="abilities" id="abilitiesBar"></div>
+
 <div class="tabs">
     <button class="tab active" data-tab="auto"><span class="tab-icon">🧪</span>Auto</button>
     <button class="tab" data-tab="click"><span class="tab-icon">👆</span>Klick</button>
@@ -719,6 +879,17 @@
 </div>
 
 <div class="panel hidden" id="panel-meta">
+    <div class="division-card">
+        <h3>🧬 Zellteilung (Mitose)</h3>
+        <p>Teile deine Zelle und gewinne <b>permanent +5% auf alle DNA</b> pro Teilung. Kosten steigen mit jeder Teilung — kein Reset nötig.</p>
+        <div class="division-stats">
+            <div class="div-stat"><div class="div-stat-num" id="divCount">0</div><div class="div-stat-lbl">Teilungen</div></div>
+            <div class="div-stat"><div class="div-stat-num" id="divBonus">+0%</div><div class="div-stat-lbl">Bonus</div></div>
+            <div class="div-stat"><div class="div-stat-num" id="divNext">+5%</div><div class="div-stat-lbl">Nächste</div></div>
+        </div>
+        <button class="division-btn" id="divBtn" onclick="doDivision()">Teilen für <span id="divCost">50K</span> DNA</button>
+    </div>
+
     <div class="card gold-glow">
         <h3>🤖 Auto-Clicker</h3>
         <p>Klickt automatisch — keine Daumenkrämpfe mehr.</p>
@@ -807,6 +978,9 @@ let game = {
     achievements: {},
     activeMutation: null,
     mutationEndsAt: 0,
+    divisions: 0,
+    abilities: {},   // { id: { lastUsed, activeUntil } }
+    lastRealTick: Date.now(),
 };
 
 // =============================== STAGES =====================================
@@ -932,6 +1106,142 @@ const mutations = [
     { id:'lucky',    icon:'🍀', name:'Glücksrausch',  desc:'Crit 50%', kind:'buff', critChance: 0.5, dur: 20000 },
     { id:'goldrush', icon:'💰', name:'Goldrausch',    desc:'Alles ×2', kind:'buff', allMult: 2,  dur: 25000 },
 ];
+
+// =============================== ABILITIES ==================================
+const abilities = [
+    { id:'photo',   icon:'☀️', name:'Photo', desc:'DPS ×8',      dur:15000, cd: 75000, kind:'dpsMult',   mult:8 },
+    { id:'adrena',  icon:'⚡', name:'Adrena',desc:'Klick ×20',   dur:10000, cd: 50000, kind:'clickMult', mult:20 },
+    { id:'mitose',  icon:'🧬', name:'Mitose',desc:'+5min DPS',   dur:0,     cd:150000, kind:'instant' },
+    { id:'frenzy',  icon:'🔥', name:'Frenzy',desc:'30 Klicks',   dur:3000,  cd:120000, kind:'autoclick', clicks: 30 },
+];
+
+function isAbilityReady(a) {
+    const st = game.abilities[a.id];
+    if (!st) return true;
+    return Date.now() >= (st.lastUsed || 0) + a.cd;
+}
+function isAbilityActive(a) {
+    const st = game.abilities[a.id];
+    return st && st.activeUntil && Date.now() < st.activeUntil;
+}
+function activeAbilityMult(kind) {
+    let mult = 1;
+    for (const a of abilities) {
+        if (a.kind === kind && isAbilityActive(a)) mult *= a.mult;
+    }
+    return mult;
+}
+function useAbility(id) {
+    const a = abilities.find(x => x.id === id);
+    if (!a || !isAbilityReady(a)) return;
+    const now = Date.now();
+    game.abilities[a.id] = { lastUsed: now, activeUntil: now + a.dur };
+    if (a.kind === 'instant' && a.id === 'mitose') {
+        const gain = game.dps * 300; // 5 min of DPS
+        addDna(gain);
+        const r = document.querySelector('.cell-stage').getBoundingClientRect();
+        spawnFloatText('+' + fmt(gain), r.left + r.width/2, r.top + r.height/2, 'gold');
+        triggerDivisionAnim();
+    }
+    if (a.kind === 'autoclick') {
+        // Distribute clicks over duration
+        const total = a.clicks;
+        const step = Math.max(50, a.dur / total);
+        for (let i = 0; i < total; i++) {
+            setTimeout(() => {
+                const stage = document.getElementById('cellStage');
+                const r = stage.getBoundingClientRect();
+                const fakeE = {
+                    clientX: r.left + r.width/2 + (Math.random()-0.5)*r.width*0.6,
+                    clientY: r.top + r.height/2 + (Math.random()-0.5)*r.height*0.6,
+                };
+                clickCell(fakeE);
+            }, i * step);
+        }
+    }
+    sndStage();
+    vibrate(20);
+    recalcStats();
+    renderAbilities();
+}
+
+// =============================== CELL DIVISION ==============================
+// Permanent stacking +5% all-DNA bonus per division. Cost scales exponentially.
+function getDivisionCost() {
+    // 50K, 175K, 612K, 2.1M, 7.5M, 26M, 92M, ...  (×3.5)
+    return Math.floor(50000 * Math.pow(3.5, game.divisions));
+}
+function getDivisionBonus() {
+    // Each division: +5% multiplicatively
+    return Math.pow(1.05, game.divisions);
+}
+function doDivision() {
+    const cost = getDivisionCost();
+    if (game.dna < cost) return;
+    game.dna -= cost;
+    game.divisions++;
+    triggerDivisionAnim();
+    sndStage();
+    vibrate([30, 30, 30]);
+    toast(`🧬 Zellteilung #${game.divisions} — +${Math.round((getDivisionBonus()-1)*100)}% gesamt`);
+    const r = document.querySelector('.cell-stage').getBoundingClientRect();
+    confetti(r.left + r.width/2, r.top + r.height/2);
+    recalcStats();
+    renderAll();
+    saveSoon();
+}
+function triggerDivisionAnim() {
+    const el = document.querySelector('.cell-stage');
+    el.classList.remove('dividing');
+    void el.offsetWidth; // restart animation
+    el.classList.add('dividing');
+    setTimeout(() => el.classList.remove('dividing'), 1300);
+}
+
+// =============================== SYNERGIES ==================================
+// Each owned auto-upgrade gives +0.5% to all other auto-upgrades.
+// Each owned click-upgrade gives +0.3% to all other click-upgrades.
+function getAutoSynergy() {
+    const totalCount = autoUpgrades.reduce((s, u) => s + u.count, 0);
+    return 1 + totalCount * 0.005;
+}
+function getClickSynergy() {
+    const totalCount = clickUpgrades.reduce((s, u) => s + u.count, 0);
+    return 1 + totalCount * 0.003;
+}
+
+// =============================== DNA DROPS (mini-event) =====================
+let dnaDropTimer = 0;
+function maybeSpawnDnaDrop(dt) {
+    dnaDropTimer += dt;
+    if (dnaDropTimer < 18000 + Math.random() * 10000) return; // ~25s avg
+    dnaDropTimer = 0;
+    spawnDnaDrop();
+}
+function spawnDnaDrop() {
+    const main = document.querySelector('.main');
+    const r = main.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'dna-drop';
+    el.innerHTML = '🧬';
+    el.style.left = (40 + Math.random() * (r.width - 80)) + 'px';
+    el.style.top = (40 + Math.random() * (r.height - 80)) + 'px';
+    el.style.setProperty('--dx', ((Math.random()-0.5)*100) + 'px');
+    el.style.setProperty('--dy', (r.height) + 'px');
+    el.onclick = () => collectDnaDrop(el);
+    el.ontouchstart = (e) => { e.preventDefault(); collectDnaDrop(el); };
+    main.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 8000);
+}
+function collectDnaDrop(el) {
+    const reward = Math.max(game.dps * 10, game.clickPower * 5);
+    addDna(reward);
+    const x = parseFloat(el.style.left) + 11;
+    const y = parseFloat(el.style.top) + 11;
+    spawnFloatText('+' + fmt(reward), x, y, 'gold');
+    sndGold();
+    el.remove();
+}
 
 // =============================== AUDIO ======================================
 let audioCtx = null;
@@ -1339,12 +1649,14 @@ function recalcStats() {
     });
     const mut = getActiveMutation();
     if (mut && mut.dpsMult) dpsMult *= mut.dpsMult;
+    // Active abilities
+    dpsMult *= activeAbilityMult('dpsMult');
 
     let dps = 0;
     for (const u of autoUpgrades) {
         dps += u.dps * u.count * getOwnershipMult(u.count);
     }
-    dps *= dpsMult * getAllMultiplier();
+    dps *= getAutoSynergy() * getDivisionBonus() * dpsMult * getAllMultiplier();
     game.dps = dps;
 
     // ===== Click =====
@@ -1355,6 +1667,7 @@ function recalcStats() {
         if (a && a.reward.clickMult) clickMult *= a.reward.clickMult;
     });
     if (mut && mut.clickMult) clickMult *= mut.clickMult;
+    clickMult *= activeAbilityMult('clickMult');
 
     let click = 1;
     for (const u of clickUpgrades) {
@@ -1364,7 +1677,7 @@ function recalcStats() {
     if (game.research.r7) {
         click += dps * researchTree.find(r=>r.id==='r7').effect.dpsClickShare;
     }
-    click *= clickMult * getAllMultiplier();
+    click *= getClickSynergy() * getDivisionBonus() * clickMult * getAllMultiplier();
     game.clickPower = click;
 }
 
@@ -1675,6 +1988,7 @@ function renderAll() {
     renderResearch();
     renderAchievements();
     renderMeta();
+    renderAbilities();
     updateBadges();
 }
 
@@ -1787,7 +2101,51 @@ function rewardLabel(r) {
     if (r.goldenRate) parts.push(`Gold ${r.goldenRate}× häufiger`);
     return parts.join(', ');
 }
+function renderAbilities() {
+    const bar = document.getElementById('abilitiesBar');
+    if (!bar.children.length) {
+        bar.innerHTML = abilities.map(a => `
+            <div class="ability" data-id="${a.id}" onclick="useAbility('${a.id}')" title="${a.name}: ${a.desc}">
+                <div class="ab-icon">${a.icon}</div>
+                <div class="ab-name">${a.name}</div>
+                <div class="ab-cd"></div>
+                <div class="ab-cd-text"></div>
+            </div>
+        `).join('');
+    }
+    // Update states
+    abilities.forEach(a => {
+        const el = bar.querySelector(`.ability[data-id="${a.id}"]`);
+        if (!el) return;
+        const st = game.abilities[a.id] || {};
+        const now = Date.now();
+        const isActive = st.activeUntil && now < st.activeUntil;
+        const cdLeft = Math.max(0, (st.lastUsed || 0) + a.cd - now);
+        const cdRatio = a.cd > 0 ? Math.min(1, cdLeft / a.cd) : 0;
+        el.classList.toggle('ready', cdLeft === 0 && !isActive);
+        el.classList.toggle('cooling', cdLeft > 0 && !isActive);
+        el.classList.toggle('active', isActive);
+        const cdEl = el.querySelector('.ab-cd');
+        cdEl.style.setProperty('--cd', (cdRatio * 360) + 'deg');
+        const cdText = el.querySelector('.ab-cd-text');
+        if (cdLeft > 0 && !isActive) cdText.textContent = Math.ceil(cdLeft / 1000) + 's';
+        else if (isActive) cdText.textContent = Math.ceil((st.activeUntil - now) / 1000) + 's';
+        else cdText.textContent = '';
+    });
+}
+
+function renderDivision() {
+    document.getElementById('divCount').textContent = game.divisions;
+    document.getElementById('divBonus').textContent = '+' + Math.round((getDivisionBonus() - 1) * 100) + '%';
+    const next = Math.pow(1.05, game.divisions + 1);
+    document.getElementById('divNext').textContent = '+' + Math.round((next - 1) * 100) + '%';
+    const cost = getDivisionCost();
+    document.getElementById('divCost').textContent = fmt(cost);
+    document.getElementById('divBtn').disabled = game.dna < cost;
+}
+
 function renderMeta() {
+    renderDivision();
     const lvl = autoClickerLevels[game.autoClickerLevel];
     const curLvl = autoClickerLevels[game.autoClickerLevel - 1];
     if (curLvl) {
@@ -1870,9 +2228,11 @@ function loadGame() {
         if (!raw) return;
         const data = JSON.parse(raw);
         Object.assign(game, data.game);
-        // Init missing fields
+        // Init missing fields (forward-compat for old saves)
         game.research = game.research || {};
         game.achievements = game.achievements || {};
+        game.abilities = game.abilities || {};
+        if (typeof game.divisions !== 'number') game.divisions = 0;
         data.auto.forEach(s => { const u = autoUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
         data.click.forEach(s => { const u = clickUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
         // Offline earnings
@@ -1900,38 +2260,51 @@ function hardReset() {
 }
 
 // =============================== MAIN LOOP ==================================
+// IMPORTANT: DPS accumulation uses Date.now() to remain correct when the
+// browser tab is in the background and rAF pauses. Visuals run on rAF.
 let lastFrame = performance.now();
-let lastDpsTick = 0;
-function loop(now) {
-    const dt = Math.min(50, now - lastFrame); // cap dt at 50ms
-    lastFrame = now;
 
+function visualLoop(now) {
+    const dt = Math.min(50, now - lastFrame);
+    lastFrame = now;
     simulateCell(dt);
     updateCellVisual();
     tickCombo();
-    maybeSpawnGolden(dt);
-    maybeSpawnMutation(dt);
-
-    // DPS tick — once per second, but smooth on screen
-    lastDpsTick += dt;
-    if (lastDpsTick >= 100) {
-        const incr = game.dps * (lastDpsTick / 1000);
-        if (incr > 0) addDna(incr);
-        lastDpsTick = 0;
-        // Recalc click/dps occasionally
-        recalcStats();
-        renderHud();
-        checkAchievements();
-    }
-
-    requestAnimationFrame(loop);
+    renderAbilities();
+    requestAnimationFrame(visualLoop);
 }
+
+function gameTick() {
+    const now = Date.now();
+    const dtMs = Math.max(0, now - (game.lastRealTick || now));
+    game.lastRealTick = now;
+    // Cap single-tick gain to prevent absurd jumps from pathological sleeps
+    const dtSec = Math.min(dtMs / 1000, 60); // 1 minute max per tick
+    recalcStats();
+    if (game.dps > 0 && dtSec > 0) addDna(game.dps * dtSec);
+
+    // Mini-events
+    maybeSpawnGolden(dtMs);
+    maybeSpawnMutation(dtMs);
+    maybeSpawnDnaDrop(dtMs);
+
+    // End ability buffs whose time ran out
+    abilities.forEach(a => {
+        const st = game.abilities[a.id];
+        if (st && st.activeUntil && now >= st.activeUntil) {
+            st.activeUntil = 0;
+        }
+    });
+
+    checkAchievements();
+    renderHud();
+}
+
 function renderHud() {
-    // Lightweight HUD update on each tick
     document.getElementById('dna').textContent = fmt(game.dna);
     document.getElementById('dps').textContent = fmt(game.dps);
     document.getElementById('clickValue').textContent = '+' + fmt(game.clickPower);
-    // Update affordability colors on visible panel
+    // Only re-render the currently visible panel for performance
     if (game.activeTab === 'auto') renderAuto();
     else if (game.activeTab === 'click') renderClick();
     else if (game.activeTab === 'research') renderResearch();
@@ -1983,13 +2356,22 @@ checkAchievements();
 window.addEventListener('beforeunload', saveGame);
 window.addEventListener('pagehide', saveGame);
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden) saveGame();
+    if (document.hidden) {
+        saveGame();
+    } else {
+        // Tab visible again: catch up immediately so numbers feel continuous
+        gameTick();
+    }
 });
 
 // Periodic save backup
-setInterval(saveGame, 20000);
+setInterval(saveGame, 15000);
 
-requestAnimationFrame(loop);
+// Visuals at 60fps; logic at a steady 250ms — independent of rAF so it
+// keeps running when the tab is backgrounded.
+game.lastRealTick = Date.now();
+requestAnimationFrame(visualLoop);
+setInterval(gameTick, 250);
 </script>
 </body>
 </html>
