@@ -94,21 +94,47 @@
             min-height: 0;
         }
 
-        .ambient-particles { position: absolute; inset:0; pointer-events:none; z-index:0; }
-        .ambient-particles .p {
+        /* Canvas-based cytoplasm particle field — GPU-friendly, no DOM thrash */
+        canvas.ambient-particles {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; z-index: 0;
+            display: block;
+        }
+
+        /* Milestone burst overlay on an upgrade card */
+        .upgrade.milestone-pulse {
+            animation: milestone-pulse 0.9s ease-out;
+        }
+        .upgrade.milestone-pulse::after {
+            content: '×2 MEILENSTEIN';
             position: absolute;
-            width: 3px; height: 3px;
-            background: rgba(0,255,163,0.35);
-            border-radius: 50%;
-            filter: blur(0.5px);
-            animation: floatUp linear infinite;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--gold);
+            font-size: 0.85rem; font-weight: 900;
+            letter-spacing: 1.5px;
+            text-shadow: 0 0 12px var(--gold), 0 0 24px rgba(255,210,74,0.6);
+            pointer-events: none;
+            animation: milestone-text 0.9s ease-out forwards;
+            z-index: 5;
         }
-        @keyframes floatUp {
-            0% { transform: translateY(110%) scale(0.6); opacity:0; }
-            15% { opacity:1; }
-            85% { opacity:1; }
-            100% { transform: translateY(-20%) scale(1); opacity:0; }
+        .upgrade { position: relative; overflow: hidden; }
+        @keyframes milestone-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(255,210,74,0.55), inset 0 0 0 0 rgba(255,210,74,0); }
+            40%  { box-shadow: 0 0 26px 4px rgba(255,210,74,0.7), inset 0 0 40px rgba(255,210,74,0.35); background: rgba(255,210,74,0.10); }
+            100% { box-shadow: 0 0 0 0 rgba(255,210,74,0), inset 0 0 0 0 rgba(255,210,74,0); }
         }
+        @keyframes milestone-text {
+            0%   { opacity: 0; transform: translate(-50%, -20%) scale(0.6); }
+            30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+            70%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -80%) scale(0.95); }
+        }
+
+        /* Cell drift wrapper — transform is rewritten per-frame in JS, no transition. */
+        .cell-stage { will-change: transform; }
+        .cell-stage.drifting { /* enabled once player evolves a flagellum */ }
 
         /* ===== STAGE / PROGRESS ===== */
         .stage-bar {
@@ -412,8 +438,9 @@
         .upg-info { flex: 1; min-width: 0; }
         .upg-name { font-weight: 700; color: var(--text); font-size: 0.82rem; line-height: 1.2; }
         .upg-desc { font-size: 0.65rem; color: var(--text-dim); margin-top: 2px; line-height: 1.2; }
-        .upg-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; }
+        .upg-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; flex-wrap: wrap; }
         .upg-meta .mult { color: var(--gold); font-weight: 800; }
+        .upg-meta .milestone-tip { color: var(--accent-2); font-weight: 700; opacity: 0.85; }
         .upg-right {
             text-align: right; flex-shrink: 0;
             display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
@@ -804,7 +831,7 @@
 </div>
 
 <div class="main">
-    <div class="ambient-particles" id="particles"></div>
+    <canvas class="ambient-particles" id="particleCanvas"></canvas>
 
     <div class="stage-bar">
         <div class="stage-name"><b id="stageName">Primitive Zelle</b> <span id="stageNext"></span></div>
@@ -856,6 +883,19 @@
                     <feComponentTransfer><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
                     <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
+                <!-- Organic membrane warp: turbulence + displacement + drop shadow combined.
+                     baseFrequency / seed / scale are animated from JS at ~12fps for "breathing". -->
+                <filter id="organicWarp" x="-30%" y="-30%" width="160%" height="160%">
+                    <feTurbulence id="warpTurb" type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="3" result="turb"/>
+                    <feDisplacementMap id="warpDisp" in="SourceGraphic" in2="turb" scale="4.5" xChannelSelector="R" yChannelSelector="G" result="warped"/>
+                    <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="sa"/>
+                    <feOffset in="sa" dx="0" dy="3" result="so"/>
+                    <feComponentTransfer in="so" result="sh"><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
+                    <feMerge>
+                        <feMergeNode in="sh"/>
+                        <feMergeNode in="warped"/>
+                    </feMerge>
+                </filter>
             </defs>
             <!-- Daughter cells layer (renders before main cell so main is on top) -->
             <g id="daughters"></g>
@@ -863,7 +903,7 @@
             <g id="appendages"></g>
             <!-- Main cell body + nucleus + organelles + specular -->
             <g id="mainCell">
-                <path id="cellBody" fill="url(#cellGrad)" filter="url(#drop)" stroke="rgba(0,80,50,0.4)" stroke-width="0.6"/>
+                <path id="cellBody" fill="url(#cellGrad)" filter="url(#organicWarp)" stroke="rgba(0,80,50,0.4)" stroke-width="0.6"/>
                 <path id="cellRim" fill="url(#rimGrad)" pointer-events="none"/>
                 <circle id="cellNucleus" cx="0" cy="0" r="22" fill="url(#nucGrad)" opacity="0.9"/>
                 <g id="organelles"></g>
@@ -1077,7 +1117,11 @@ const stages = [
 // than v4.2. DPS gains gentler. Designed for ~1 year of real play to maximum.
 // Reference: Cookie Clicker uses 1.15 but has 600+ upgrades; we use a steeper
 // curve with 30 tiers to achieve similar total content.
-const COST_GROWTH = 1.28;
+// Strict exponential cost growth: cost = base * (1.15 ^ count).
+// Combined with milestone doubling at 10/25/50/100 to give meaningful
+// breakpoints rather than slow linear ramp.
+const COST_GROWTH = 1.15;
+const MILESTONES = [10, 25, 50, 100];
 const autoUpgrades = [
     { id:'a1',  name:'Mitochondrien',     icon:'⚡', dps:0.4,         cost:60 },
     { id:'a2',  name:'Ribosomen',         icon:'🔬', dps:1.8,         cost:850 },
@@ -1393,7 +1437,19 @@ function fmtTime(ms) {
     return Math.floor(h/24) + 'd ' + (h%24) + 'h';
 }
 function getCost(u) { return Math.floor(u.cost * Math.pow(COST_GROWTH, u.count)); }
-function getOwnershipMult(c) { return Math.pow(1.5, Math.floor(c / 50)); } // x1.5 per 50 owned — much slower late-game scaling
+// Strict milestone doubling: ×2 at 10, again at 25, 50, 100 (compound = ×16 at 100).
+function getOwnershipMult(c) {
+    let m = 1;
+    for (const t of MILESTONES) if (c >= t) m *= 2;
+    return m;
+}
+function nextMilestone(c) {
+    for (const t of MILESTONES) if (c < t) return t;
+    return null;
+}
+function crossedMilestone(prev, next) {
+    return MILESTONES.find(t => prev < t && next >= t) || null;
+}
 
 // Bulk cost helper
 function getBulkCost(u, n) {
@@ -2110,7 +2166,7 @@ function recalcStats() {
 
     let click = 1;
     for (const u of clickUpgrades) {
-        click += u.power * u.count;
+        click += u.power * u.count * getOwnershipMult(u.count);
     }
     // Synaptic Resonance: % of DPS added to click
     if (game.research.r7) {
@@ -2305,14 +2361,21 @@ function buyAuto(id) {
     if (u.count > prevCount) {
         renderOrganelles();
         renderAppendages();
+        const ms = crossedMilestone(prevCount, u.count);
+        if (ms) triggerMilestone(u, ms);
     }
     renderAll();
 }
 function buyClick(id) {
     const u = clickUpgrades.find(x => x.id === id);
     if (!u) return;
+    const prevCount = u.count;
     doBuy(u);
     recalcStats();
+    if (u.count > prevCount) {
+        const ms = crossedMilestone(prevCount, u.count);
+        if (ms) triggerMilestone(u, ms);
+    }
     renderAll();
 }
 function doBuy(u) {
@@ -2354,20 +2417,30 @@ function buyResearch(id) {
 }
 
 // =============================== PRESTIGE ===================================
+// First soft-reset unlocks at 1,000,000 lifetime DNA.
+// Earned Evolutionspunkte scale with the square root of lifetime DNA over the
+// threshold — classic idle curve so each reset feels meaningfully bigger.
+// Each Evolutionspunkt grants a permanent +10% PPS multiplier (compounding).
+const PRESTIGE_THRESHOLD = 1e6;
 function getPrestigeCost() {
-    // Much steeper — first prestige at 50M, then 1.5B, 45B, 1.35T, ...
-    return Math.floor(50e6 * Math.pow(30, game.prestigePoints));
+    // Threshold for *this* prestige (lifetime DNA needed to do another one)
+    return Math.floor(PRESTIGE_THRESHOLD * Math.pow(10, game.prestigePoints));
+}
+function getEvolutionPointsAvailable() {
+    if (game.lifetimeDna < PRESTIGE_THRESHOLD) return 0;
+    const earned = Math.floor(Math.sqrt(game.lifetimeDna / PRESTIGE_THRESHOLD));
+    return Math.max(0, earned - game.prestigePoints);
 }
 function getNextPrestigeMult() {
-    // Linear stack instead of exponential — prevents runaway after a few resets
-    return 1 + (game.prestigePoints + 1) * 0.5;
+    const pts = game.prestigePoints + getEvolutionPointsAvailable();
+    return +(Math.pow(1.10, pts)).toFixed(2);
 }
 function doPrestige() {
-    const cost = getPrestigeCost();
-    if (game.lifetimeDna < cost) return;
-    if (!confirm(`Prestige ausführen? Du verlierst alle DNA & Upgrades, erhältst aber ×${getNextPrestigeMult()} Multiplikator.`)) return;
-    game.prestigePoints++;
-    game.prestigeMultiplier = 1 + game.prestigePoints * 0.5;
+    const gained = getEvolutionPointsAvailable();
+    if (gained <= 0) return;
+    if (!confirm(`Soft-Reset für +${gained} Evolutionspunkte? Du verlierst DNA & Upgrades, erhältst aber permanent ×${(Math.pow(1.10, game.prestigePoints + gained)).toFixed(2)} PPS.`)) return;
+    game.prestigePoints += gained;
+    game.prestigeMultiplier = Math.pow(1.10, game.prestigePoints);
     game.dna = 0;
     game.totalDna = 0;
     game.stage = 1;
@@ -2379,7 +2452,7 @@ function doPrestige() {
     setStageVisuals();
     renderAll();
     sndStage();
-    toast(`🧬 Prestige! ×${game.prestigeMultiplier} Multiplikator`);
+    toast(`🧬 +${gained} Evolutionspunkte! ×${game.prestigeMultiplier.toFixed(2)} PPS`);
     saveSoon();
     checkAchievements();
 }
@@ -2457,12 +2530,14 @@ function renderAuto() {
         const cost = getBulkCost(u, n);
         const canAfford = game.dna >= getCost(u);
         const ownership = getOwnershipMult(u.count);
-        return `<div class="upgrade ${canAfford ? 'affordable' : ''}" onclick="buyAuto('${u.id}')">
+        const pulse = (u._milestoneAt && Date.now() - u._milestoneAt < 900) ? ' milestone-pulse' : '';
+        const ms = nextMilestone(u.count);
+        return `<div class="upgrade${canAfford ? ' affordable' : ''}${pulse}" onclick="buyAuto('${u.id}')">
             <div class="upg-icon">${u.icon}</div>
             <div class="upg-info">
                 <div class="upg-name">${u.name}</div>
                 <div class="upg-desc">+${fmt(u.dps)} DNA/s · ${u.count > 0 ? 'Total: ' + fmt(u.dps * u.count * ownership) + '/s' : 'noch nicht gebaut'}</div>
-                <div class="upg-meta">${ownership > 1 ? `<span class="mult">×${ownership}</span>` : ''} ${game.buyMode !== 1 ? `<span>kauft ${n}</span>` : ''}</div>
+                <div class="upg-meta">${ownership > 1 ? `<span class="mult">×${ownership}</span>` : ''} ${ms ? `<span class="milestone-tip">nächster ×2 bei ${ms}</span>` : ''} ${game.buyMode !== 1 ? `<span>kauft ${n}</span>` : ''}</div>
             </div>
             <div class="upg-right">
                 <div class="upg-cost ${canAfford ? '' : 'no-afford'}">${fmt(cost)}</div>
@@ -2489,12 +2564,15 @@ function renderClick() {
         else n = game.buyMode;
         const cost = getBulkCost(u, n);
         const canAfford = game.dna >= getCost(u);
-        return `<div class="upgrade ${canAfford ? 'affordable' : ''}" onclick="buyClick('${u.id}')">
+        const pulse = (u._milestoneAt && Date.now() - u._milestoneAt < 900) ? ' milestone-pulse' : '';
+        const ms = nextMilestone(u.count);
+        const ownership = getOwnershipMult(u.count);
+        return `<div class="upgrade${canAfford ? ' affordable' : ''}${pulse}" onclick="buyClick('${u.id}')">
             <div class="upg-icon">${u.icon}</div>
             <div class="upg-info">
                 <div class="upg-name">${u.name}</div>
-                <div class="upg-desc">+${fmt(u.power)} pro Klick · ${u.count > 0 ? 'Total: +' + fmt(u.power * u.count) : 'noch nicht entwickelt'}</div>
-                ${game.buyMode !== 1 ? `<div class="upg-meta"><span>kauft ${n}</span></div>` : ''}
+                <div class="upg-desc">+${fmt(u.power)} pro Klick · ${u.count > 0 ? 'Total: +' + fmt(u.power * u.count * ownership) : 'noch nicht entwickelt'}</div>
+                <div class="upg-meta">${ownership > 1 ? `<span class="mult">×${ownership}</span>` : ''} ${ms ? `<span class="milestone-tip">nächster ×2 bei ${ms}</span>` : ''} ${game.buyMode !== 1 ? `<span>kauft ${n}</span>` : ''}</div>
             </div>
             <div class="upg-right">
                 <div class="upg-cost ${canAfford ? '' : 'no-afford'}">${fmt(cost)}</div>
@@ -2608,17 +2686,18 @@ function renderMeta() {
         document.getElementById('acCost').textContent = 'MAX';
         document.getElementById('acBtn').disabled = true;
     }
-    const pcost = getPrestigeCost();
-    document.getElementById('curMult').textContent = game.prestigeMultiplier;
+    const pcost = PRESTIGE_THRESHOLD;
+    const gained = getEvolutionPointsAvailable();
+    document.getElementById('curMult').textContent = game.prestigeMultiplier.toFixed(2);
     document.getElementById('nextMult').textContent = getNextPrestigeMult();
     document.getElementById('prestigeCost').textContent = fmt(pcost);
     const pbtn = document.getElementById('prestigeBtn');
-    if (game.lifetimeDna >= pcost) {
+    if (gained > 0) {
         pbtn.disabled = false;
-        pbtn.innerHTML = `Prestige ×${getNextPrestigeMult()}`;
+        pbtn.innerHTML = `Evolvieren · +${gained} EP · ×${getNextPrestigeMult()} PPS`;
     } else {
         pbtn.disabled = true;
-        pbtn.innerHTML = `Benötigt ${fmt(pcost)} DNA`;
+        pbtn.innerHTML = `Benötigt ${fmt(pcost)} Lifetime-DNA`;
     }
     document.getElementById('soundBtn').textContent = game.sound ? 'An' : 'Aus';
     document.getElementById('hapticBtn').textContent = game.haptic ? 'An' : 'Aus';
@@ -2660,11 +2739,13 @@ function saveSoon() {
     saveTimeout = setTimeout(() => { saveTimeout = null; saveGame(); }, 1500);
 }
 function saveGame() {
+    const now = Date.now();
+    game.lastTick = now;
     const data = {
         game,
         auto: autoUpgrades.map(u => ({ id: u.id, count: u.count })),
         click: clickUpgrades.map(u => ({ id: u.id, count: u.count })),
-        ts: Date.now(),
+        ts: now, // lastTick timestamp — used for offline-progression calculation
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch(e){}
 }
@@ -2679,6 +2760,12 @@ function loadGame() {
         game.achievements = game.achievements || {};
         game.abilities = game.abilities || {};
         if (typeof game.divisions !== 'number') game.divisions = 0;
+        if (typeof game.prestigePoints !== 'number') game.prestigePoints = 0;
+        // Recompute prestige multiplier from current formula (1.10^points)
+        // so old saves migrate cleanly to the new prestige economy.
+        game.prestigeMultiplier = Math.pow(1.10, game.prestigePoints);
+        // Store the load-time tick so the loop is consistent with offline calc.
+        game.lastTick = data.ts || Date.now();
         data.auto.forEach(s => { const u = autoUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
         data.click.forEach(s => { const u = clickUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
         // Offline earnings
@@ -2711,10 +2798,16 @@ function hardReset() {
 let lastFrame = performance.now();
 
 function visualLoop(now) {
-    const dt = Math.min(50, now - lastFrame);
+    const dtMs = Math.min(50, now - lastFrame);
     lastFrame = now;
-    simulateCell(dt);
+    // Physics + cell path
+    simulateCell(dtMs);
     updateCellVisual();
+    // Visual juice — all DOM/SVG writes happen here, not in gameTick.
+    OrganicWarp.tick(now);
+    CellDrift.tick(now);
+    ParticleField.step(dtMs / 1000);
+    // UI tick
     tickCombo();
     renderAbilities();
     requestAnimationFrame(visualLoop);
@@ -2774,23 +2867,165 @@ document.addEventListener('pointerdown', () => {
 }, { once: true });
 
 // =============================== INIT =======================================
-function buildAmbientParticles() {
-    const c = document.getElementById('particles');
-    for (let i = 0; i < 30; i++) {
-        const p = document.createElement('div');
-        p.className = 'p';
-        p.style.left = Math.random() * 100 + '%';
-        p.style.animationDuration = (6 + Math.random()*6) + 's';
-        p.style.animationDelay = (Math.random()*-12) + 's';
-        const size = 1 + Math.random()*2;
-        p.style.width = size + 'px';
-        p.style.height = size + 'px';
-        c.appendChild(p);
+
+// ----- Canvas cytoplasm particle field --------------------------------------
+// One offscreen draw per frame on a single <canvas>; no DOM mutation per particle.
+// Density auto-scales with viewport area to keep mobile devices comfortable.
+const ParticleField = (() => {
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d', { alpha: true });
+    const TARGET_DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    let particles = [];
+    let w = 0, h = 0;
+
+    // Pre-rendered radial-gradient sprites per hue. Drawing a cached bitmap
+    // is roughly 10× faster than creating a new gradient + arc-fill each frame.
+    const SPRITE_R = 32;
+    function makeSprite(hue) {
+        const s = document.createElement('canvas');
+        s.width = s.height = SPRITE_R * 2;
+        const sctx = s.getContext('2d');
+        const g = sctx.createRadialGradient(SPRITE_R, SPRITE_R, 0, SPRITE_R, SPRITE_R, SPRITE_R);
+        g.addColorStop(0,   `hsla(${hue},100%,72%,1)`);
+        g.addColorStop(0.4, `hsla(${hue},100%,68%,0.45)`);
+        g.addColorStop(1,   `hsla(${hue},100%,68%,0)`);
+        sctx.fillStyle = g;
+        sctx.fillRect(0, 0, SPRITE_R * 2, SPRITE_R * 2);
+        return s;
     }
+    const sprites = { 158: makeSprite(158), 195: makeSprite(195) };
+
+    function spawn(p, initial) {
+        p.r = 0.6 + Math.random() * 2.6;
+        p.x = Math.random() * w;
+        p.y = initial ? Math.random() * h : h + 10 + Math.random() * 40;
+        p.vx = (Math.random() - 0.5) * 6;
+        p.vy = -6 - Math.random() * 14;
+        p.life = initial ? Math.random() * 10 : 0;
+        p.ttl = 8 + Math.random() * 8;
+        p.hue = Math.random() < 0.55 ? 158 : 195;
+        p.alpha = 0.16 + Math.random() * 0.22;
+        p.phase = Math.random() * Math.PI * 2;
+    }
+
+    function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        w = Math.max(1, rect.width);
+        h = Math.max(1, rect.height);
+        canvas.width = Math.floor(w * TARGET_DPR);
+        canvas.height = Math.floor(h * TARGET_DPR);
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(TARGET_DPR, 0, 0, TARGET_DPR, 0, 0);
+        const target = Math.max(24, Math.min(60, Math.round(w * h / 9000)));
+        if (particles.length === 0) {
+            particles = new Array(target).fill(0).map(() => { const p = {}; spawn(p, true); return p; });
+        } else if (target > particles.length) {
+            while (particles.length < target) { const p = {}; spawn(p, true); particles.push(p); }
+        } else if (target < particles.length) {
+            particles.length = target;
+        }
+    }
+
+    function step(dt) {
+        if (!w) return;
+        ctx.clearRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of particles) {
+            p.life += dt;
+            p.x += (p.vx + Math.sin(p.life * 0.5 + p.phase) * 4) * dt;
+            p.y += p.vy * dt;
+            const lifeT = p.life / p.ttl;
+            const fade = lifeT < 0.18 ? lifeT / 0.18
+                       : lifeT > 0.82 ? Math.max(0, (1 - lifeT) / 0.18)
+                       : 1;
+            const a = p.alpha * fade;
+            if (a < 0.005) { spawn(p, false); continue; }
+            const R = p.r * 4;
+            ctx.globalAlpha = a;
+            ctx.drawImage(sprites[p.hue], p.x - R, p.y - R, R * 2, R * 2);
+            if (p.life >= p.ttl || p.y < -30 || p.x < -50 || p.x > w + 50) spawn(p, false);
+        }
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    let resizeT;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeT);
+        resizeT = setTimeout(resize, 120);
+    });
+
+    return { init: resize, step };
+})();
+
+// ----- Organic membrane warp animation --------------------------------------
+// feTurbulence is GPU-cheap for low octave counts but expensive if reseeded
+// every frame at 60Hz. We throttle to ~12Hz and let smooth Verlet motion fill
+// the gaps. Displacement scale scales subtly with stage for "more alive late game".
+const OrganicWarp = (() => {
+    const turb = document.getElementById('warpTurb');
+    const disp = document.getElementById('warpDisp');
+    let lastSeed = 0;
+    return {
+        tick(now) {
+            if (now - lastSeed < 80) return;
+            lastSeed = now;
+            const t = now * 0.0008;
+            const stageBoost = Math.min(3.5, 1 + (game.stage - 1) * 0.10);
+            const baseF = (0.014 + Math.sin(t * 0.9) * 0.005).toFixed(4);
+            const scale = (3.2 + stageBoost + Math.sin(t * 0.7) * 1.4).toFixed(2);
+            turb.setAttribute('baseFrequency', baseF);
+            turb.setAttribute('seed', String(Math.floor(now / 220) % 9999));
+            disp.setAttribute('scale', scale);
+        }
+    };
+})();
+
+// ----- Sanftes Driften der Zelle im Viewport (ab Stage 5 / Geißeln) ---------
+const CellDrift = (() => {
+    const el = document.getElementById('cellStage');
+    return {
+        tick(now) {
+            const hasFlagella = autoUpgrades.find(u => u.id === 'a4' && u.count > 0);
+            if (game.stage < 5 && !hasFlagella) {
+                if (el.style.transform) el.style.transform = '';
+                el.classList.remove('drifting');
+                return;
+            }
+            el.classList.add('drifting');
+            const intensity = Math.min(34, (game.stage - 4) * 4 + (hasFlagella ? 6 : 0));
+            const t = now * 0.0001;
+            const x = Math.sin(t * 1.3) * intensity;
+            const y = Math.cos(t * 0.9) * intensity * 0.55;
+            const rot = Math.sin(t * 0.6) * 2.5;
+            el.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
+        }
+    };
+})();
+
+// ----- Milestone feedback ---------------------------------------------------
+function triggerMilestone(u, threshold) {
+    u._milestoneAt = Date.now();
+    sndGold();
+    vibrate(45);
+    toast(`✨ Meilenstein ×2 — ${u.name} (Lvl ${threshold})`);
+    // Pulse the cell with a brief golden flash
+    cellPhase += 0.6; // breathe accent
+    applyImpulse(0, 0, 22);
+    const stage = document.getElementById('cellStage');
+    stage.animate(
+        [
+            { filter: 'brightness(1) saturate(1)' },
+            { filter: 'brightness(1.7) saturate(1.6) drop-shadow(0 0 18px rgba(255,210,74,0.8))' },
+            { filter: 'brightness(1) saturate(1)' }
+        ],
+        { duration: 750, easing: 'ease-out' }
+    );
 }
 
 initCell();
-buildAmbientParticles();
+ParticleField.init();
 loadGame();
 setStageVisuals();
 renderDaughters();
