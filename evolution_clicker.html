@@ -118,10 +118,7 @@
             cursor: pointer;
             -webkit-user-select: none;
             user-select: none;
-        }
-
-        .cell-container:active .cell-core {
-            transform: scale(0.92);
+            touch-action: manipulation;
         }
 
         .dna-ring {
@@ -476,7 +473,17 @@
             display: none !important;
         }
 
-        /* === SCROLLBAR === */
+        /* Mobile-Optimierungen */
+        html, body {
+            touch-action: manipulation;
+            -webkit-text-size-adjust: 100%;
+            overscroll-behavior: none;
+        }
+        
+        /* Verhindert Doppel-Tap-Zoom auf allen Elementen */
+        button, .upgrade, .cell-container {
+            touch-action: manipulation;
+        }
         ::-webkit-scrollbar {
             width: 4px;
         }
@@ -768,19 +775,30 @@
             const gain = game.clickPower * game.prestigeMultiplier;
             addDna(gain);
 
-            // Floating Text
+            // Floating Text - von Zelle-Mitte wenn kein Event
             const floatText = document.createElement('div');
             floatText.className = 'float-text';
             floatText.textContent = '+' + formatNumber(gain);
             
-            const rect = document.getElementById('cellContainer').getBoundingClientRect();
-            const x = e ? e.clientX || e.touches?.[0]?.clientX : rect.left + rect.width / 2;
-            const y = e ? e.clientY || e.touches?.[0]?.clientY : rect.top + rect.height / 2;
+            let x, y;
+            if (e && (e.clientX || (e.touches && e.touches[0]))) {
+                x = e.clientX || e.touches[0].clientX;
+                y = e.clientY || e.touches[0].clientY;
+            } else {
+                const rect = document.getElementById('cellContainer').getBoundingClientRect();
+                x = rect.left + rect.width / 2;
+                y = rect.top + rect.height / 2;
+            }
             
             floatText.style.left = (x - 30) + 'px';
             floatText.style.top = (y - 40) + 'px';
             document.body.appendChild(floatText);
             setTimeout(() => floatText.remove(), 800);
+            
+            // Zelle-Pulse Animation
+            const core = document.getElementById('cellCore');
+            core.style.transform = 'scale(0.85)';
+            setTimeout(() => core.style.transform = '', 150);
         }
 
         function addDna(amount) {
