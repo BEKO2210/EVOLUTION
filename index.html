@@ -746,6 +746,28 @@
         }
         .cell-stage.dividing svg { animation: divisionSplit 1.2s ease-in-out; }
 
+        /* Satellites: orbit and breathe */
+        #satellitesOrbit { transform-origin: 0 0; animation: orbitSpin 30s linear infinite; }
+        @keyframes orbitSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .satellite { transform-origin: center; animation: satBreathe 2.5s infinite ease-in-out; transform-box: fill-box; }
+        @keyframes satBreathe {
+            0%,100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.15); opacity: 1; }
+        }
+        .satellite-new { animation: satSpawn 0.6s cubic-bezier(0.34,1.56,0.64,1), satBreathe 2.5s infinite ease-in-out 0.6s; }
+        @keyframes satSpawn {
+            0% { transform: scale(0) translateX(0); opacity: 0; }
+            60% { transform: scale(1.4) translateX(0); opacity: 1; }
+            100% { transform: scale(1) translateX(0); opacity: 0.9; }
+        }
+
+        /* Flagella tail wiggle */
+        .flagellum { animation: flagWiggle 0.8s infinite ease-in-out; transform-origin: 0 0; transform-box: fill-box; }
+        @keyframes flagWiggle {
+            0%,100% { transform: rotate(-8deg); }
+            50% { transform: rotate(8deg); }
+        }
+
         /* DNA Drops (mini event) */
         .dna-drop {
             position: absolute;
@@ -816,9 +838,11 @@
                     <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
             </defs>
+            <g id="appendages"></g>
             <path id="cellBody" fill="url(#cellGrad)" filter="url(#glow)" stroke="rgba(0,255,163,0.5)" stroke-width="1"/>
             <circle id="cellNucleus" cx="0" cy="0" r="22" fill="url(#nucGrad)" opacity="0.85"/>
             <g id="organelles"></g>
+            <g id="satellitesOrbit"><g id="satellites"></g></g>
         </svg>
         <div class="combo" id="combo">
             COMBO ×<span id="comboMult">1.0</span>
@@ -984,64 +1008,108 @@ let game = {
 };
 
 // =============================== STAGES =====================================
-// Each stage: name, DNA threshold, bonus (mult on all DNA), visual params
+// 30 stages spanning subcellular → cosmic. Thresholds chosen so reaching the
+// final stage with full progression takes on the order of a year of real play
+// (with prestige/division/research stacking).
 const stages = [
-    { name: 'Primitive Zelle', threshold: 0,    bonus: 1.00, radius: 38, wobble: 0.02, color: '#00ffa3', shape: 'sphere' },
-    { name: 'Bakterium',       threshold: 500,  bonus: 1.05, radius: 42, wobble: 0.06, color: '#00ffa3', shape: 'elongated' },
-    { name: 'Amöbe',           threshold: 5e3,  bonus: 1.10, radius: 46, wobble: 0.12, color: '#00ffa3', shape: 'blob' },
-    { name: 'Paramecium',      threshold: 5e4,  bonus: 1.15, radius: 50, wobble: 0.05, color: '#37ffb3', shape: 'oval' },
-    { name: 'Pflanzenzelle',   threshold: 5e5,  bonus: 1.20, radius: 56, wobble: 0.03, color: '#5cffcb', shape: 'walled' },
-    { name: 'Schwamm',         threshold: 5e6,  bonus: 1.25, radius: 60, wobble: 0.04, color: '#7affd4', shape: 'porous' },
-    { name: 'Hydra',           threshold: 5e7,  bonus: 1.30, radius: 64, wobble: 0.08, color: '#9affe0', shape: 'tentacled' },
-    { name: 'Fisch',           threshold: 5e8,  bonus: 1.40, radius: 68, wobble: 0.05, color: '#b0ffea', shape: 'fish' },
-    { name: 'Säugetier',       threshold: 5e9,  bonus: 1.55, radius: 72, wobble: 0.03, color: '#c8ffef', shape: 'sphere' },
-    { name: 'Mensch',          threshold: 5e10, bonus: 1.75, radius: 76, wobble: 0.02, color: '#e0fff7', shape: 'evolved' },
-    { name: 'Übermensch',      threshold: 5e11, bonus: 2.00, radius: 80, wobble: 0.05, color: '#ffe4f7', shape: 'plasma' },
-    { name: 'Schwarm-Intelligenz', threshold: 5e12, bonus: 2.50, radius: 84, wobble: 0.10, color: '#ffd24a', shape: 'plasma' },
+    { name: 'Proto-Molekül',    threshold: 0,      bonus: 1.00, radius: 30, wobble: 0.02, color: '#00ffa3' },
+    { name: 'RNA-Strang',        threshold: 200,    bonus: 1.05, radius: 34, wobble: 0.05, color: '#1affae' },
+    { name: 'DNA-Helix',         threshold: 2e3,    bonus: 1.10, radius: 38, wobble: 0.04, color: '#3affbe' },
+    { name: 'Virus',             threshold: 2e4,    bonus: 1.12, radius: 40, wobble: 0.08, color: '#56ffce' },
+    { name: 'Prokaryot',         threshold: 2e5,    bonus: 1.15, radius: 42, wobble: 0.05, color: '#6effd8' },
+    { name: 'Bakterium',         threshold: 2e6,    bonus: 1.18, radius: 44, wobble: 0.08, color: '#7affd4' },
+    { name: 'Archaea',           threshold: 2e7,    bonus: 1.20, radius: 46, wobble: 0.04, color: '#88ffdf' },
+    { name: 'Amöbe',             threshold: 2e8,    bonus: 1.22, radius: 50, wobble: 0.14, color: '#9affe5' },
+    { name: 'Paramecium',        threshold: 2e9,    bonus: 1.25, radius: 52, wobble: 0.06, color: '#aaffed' },
+    { name: 'Pflanzenzelle',     threshold: 2e10,   bonus: 1.28, radius: 56, wobble: 0.03, color: '#5cffcb' },
+    { name: 'Schwamm',           threshold: 2e11,   bonus: 1.32, radius: 60, wobble: 0.05, color: '#7affd4' },
+    { name: 'Hydra',             threshold: 2e12,   bonus: 1.36, radius: 64, wobble: 0.10, color: '#9affe0' },
+    { name: 'Plattwurm',         threshold: 2e13,   bonus: 1.40, radius: 66, wobble: 0.07, color: '#b0ffea' },
+    { name: 'Insekt',            threshold: 2e14,   bonus: 1.45, radius: 68, wobble: 0.05, color: '#c8ffef' },
+    { name: 'Fisch',             threshold: 2e15,   bonus: 1.50, radius: 70, wobble: 0.06, color: '#b0eaff' },
+    { name: 'Amphibie',          threshold: 2e16,   bonus: 1.55, radius: 72, wobble: 0.04, color: '#c0dfff' },
+    { name: 'Reptil',            threshold: 2e17,   bonus: 1.60, radius: 74, wobble: 0.03, color: '#d0cfff' },
+    { name: 'Vogel',             threshold: 2e18,   bonus: 1.65, radius: 76, wobble: 0.05, color: '#e0bfff' },
+    { name: 'Säugetier',         threshold: 2e19,   bonus: 1.72, radius: 78, wobble: 0.04, color: '#f0afff' },
+    { name: 'Primat',            threshold: 2e20,   bonus: 1.80, radius: 80, wobble: 0.03, color: '#ff9aef' },
+    { name: 'Hominid',           threshold: 2e21,   bonus: 1.90, radius: 82, wobble: 0.03, color: '#ff8acf' },
+    { name: 'Mensch',            threshold: 2e22,   bonus: 2.00, radius: 84, wobble: 0.02, color: '#ffd24a' },
+    { name: 'Übermensch',        threshold: 2e23,   bonus: 2.15, radius: 86, wobble: 0.04, color: '#ffe080' },
+    { name: 'Schwarm-Intelligenz', threshold: 2e24, bonus: 2.30, radius: 88, wobble: 0.08, color: '#ffeb99' },
+    { name: 'KI-Singularität',   threshold: 2e25,   bonus: 2.50, radius: 90, wobble: 0.10, color: '#fff5b3' },
+    { name: 'Stern-Bewusstsein', threshold: 2e26,   bonus: 2.75, radius: 92, wobble: 0.06, color: '#fff8d0' },
+    { name: 'Galaktischer Geist',threshold: 2e27,   bonus: 3.00, radius: 94, wobble: 0.05, color: '#fffae0' },
+    { name: 'Universum-Knoten',  threshold: 2e28,   bonus: 3.50, radius: 96, wobble: 0.04, color: '#ffffe8' },
+    { name: 'Multiversum',       threshold: 2e29,   bonus: 4.00, radius: 98, wobble: 0.07, color: '#f0f0ff' },
+    { name: 'Transzendenz',      threshold: 2e30,   bonus: 5.00, radius: 100, wobble: 0.12, color: '#ffffff' },
 ];
 
 // =============================== UPGRADES ===================================
-// Slower curve: 1.18 instead of 1.15; deeper progression
-const COST_GROWTH = 1.18;
+// Slower curve: 1.22 cost growth; 30 tiers each; tier-N gives ~3.6x previous
+const COST_GROWTH = 1.22;
 const autoUpgrades = [
-    { id:'a1',  name:'Mitochondrien',  icon:'⚡', dps:1,           cost:15 },
-    { id:'a2',  name:'Ribosomen',      icon:'🔬', dps:6,           cost:120 },
-    { id:'a3',  name:'Zellkern',       icon:'🧬', dps:30,          cost:750 },
-    { id:'a4',  name:'Geißeln',        icon:'🌊', dps:120,         cost:5e3 },
-    { id:'a5',  name:'Chloroplasten',  icon:'🌿', dps:500,         cost:30e3 },
-    { id:'a6',  name:'Vakuolen',       icon:'💧', dps:1800,        cost:150e3 },
-    { id:'a7',  name:'Zellwand',       icon:'🛡️', dps:6000,        cost:700e3 },
-    { id:'a8',  name:'Gewebe',         icon:'🧩', dps:22e3,        cost:3.5e6 },
-    { id:'a9',  name:'Organe',         icon:'❤️', dps:80e3,        cost:18e6 },
-    { id:'a10', name:'Muskulatur',     icon:'💪', dps:280e3,       cost:85e6 },
-    { id:'a11', name:'Nervensystem',   icon:'🧠', dps:1e6,         cost:400e6 },
-    { id:'a12', name:'Organismus',     icon:'🦠', dps:3.5e6,       cost:2e9 },
-    { id:'a13', name:'Immunität',      icon:'🛡️', dps:12e6,        cost:10e9 },
-    { id:'a14', name:'Symbiose',       icon:'🤝', dps:42e6,        cost:50e9 },
-    { id:'a15', name:'Fortpflanzung',  icon:'👶', dps:150e6,       cost:250e9 },
-    { id:'a16', name:'Evolution',      icon:'🧬', dps:550e6,       cost:1.2e12 },
-    { id:'a17', name:'Konvergenz',     icon:'🔄', dps:2e9,         cost:6e12 },
-    { id:'a18', name:'Singularität',   icon:'🌌', dps:7e9,         cost:30e12 },
+    { id:'a1',  name:'Mitochondrien',     icon:'⚡', dps:1,           cost:15 },
+    { id:'a2',  name:'Ribosomen',         icon:'🔬', dps:5,           cost:120 },
+    { id:'a3',  name:'Zellkern',          icon:'🧬', dps:22,          cost:900 },
+    { id:'a4',  name:'Geißeln',           icon:'🌊', dps:90,          cost:7e3 },
+    { id:'a5',  name:'Chloroplasten',     icon:'🌿', dps:360,         cost:50e3 },
+    { id:'a6',  name:'Vakuolen',          icon:'💧', dps:1.4e3,       cost:360e3 },
+    { id:'a7',  name:'Zellwand',          icon:'🛡️', dps:5.5e3,       cost:2.5e6 },
+    { id:'a8',  name:'Gewebe',            icon:'🧩', dps:22e3,        cost:18e6 },
+    { id:'a9',  name:'Organe',            icon:'❤️', dps:88e3,        cost:120e6 },
+    { id:'a10', name:'Muskulatur',        icon:'💪', dps:350e3,       cost:800e6 },
+    { id:'a11', name:'Nervensystem',      icon:'🧠', dps:1.4e6,       cost:5.5e9 },
+    { id:'a12', name:'Organismus',        icon:'🦠', dps:5.5e6,       cost:38e9 },
+    { id:'a13', name:'Immunität',         icon:'🩸', dps:22e6,        cost:260e9 },
+    { id:'a14', name:'Symbiose',          icon:'🤝', dps:88e6,        cost:1.8e12 },
+    { id:'a15', name:'Fortpflanzung',     icon:'👶', dps:350e6,       cost:13e12 },
+    { id:'a16', name:'Evolution',         icon:'🧬', dps:1.4e9,       cost:90e12 },
+    { id:'a17', name:'Konvergenz',        icon:'🔄', dps:5.5e9,       cost:600e12 },
+    { id:'a18', name:'Singularität',      icon:'🌌', dps:22e9,        cost:4.5e15 },
+    { id:'a19', name:'Spezialisierung',   icon:'🎯', dps:88e9,        cost:32e15 },
+    { id:'a20', name:'Schwarm',           icon:'🐝', dps:350e9,       cost:220e15 },
+    { id:'a21', name:'Kolonie',           icon:'🏘️', dps:1.4e12,      cost:1.5e18 },
+    { id:'a22', name:'Stamm',             icon:'🪶', dps:5.5e12,      cost:11e18 },
+    { id:'a23', name:'Zivilisation',      icon:'🏛️', dps:22e12,       cost:75e18 },
+    { id:'a24', name:'Imperium',          icon:'👑', dps:88e12,       cost:520e18 },
+    { id:'a25', name:'Planeten-Geist',    icon:'🌍', dps:350e12,      cost:3.6e21 },
+    { id:'a26', name:'Sonnen-System',     icon:'☀️', dps:1.4e15,      cost:25e21 },
+    { id:'a27', name:'Galaxien-Kern',     icon:'🌟', dps:5.5e15,      cost:170e21 },
+    { id:'a28', name:'Galaxien-Cluster',  icon:'✨', dps:22e15,       cost:1.2e24 },
+    { id:'a29', name:'Supercluster',      icon:'💫', dps:88e15,       cost:8.5e24 },
+    { id:'a30', name:'Kosmische Struktur',icon:'🌌', dps:350e15,      cost:60e24 },
 ];
 const clickUpgrades = [
-    { id:'c1',  name:'Enzyme',         icon:'⚗️', power:2,         cost:50 },
-    { id:'c2',  name:'Katalysatoren',  icon:'🔥', power:12,        cost:400 },
-    { id:'c3',  name:'Hormone',        icon:'💊', power:55,        cost:2.5e3 },
-    { id:'c4',  name:'Neurotransmitter',icon:'⚡', power:220,       cost:14e3 },
-    { id:'c5',  name:'Synapsen',       icon:'🔗', power:900,       cost:75e3 },
-    { id:'c6',  name:'Axone',          icon:'📡', power:3.5e3,     cost:380e3 },
-    { id:'c7',  name:'Rezeptoren',     icon:'🔮', power:14e3,      cost:1.8e6 },
-    { id:'c8',  name:'Ionenkanäle',    icon:'⚡', power:55e3,      cost:9e6 },
-    { id:'c9',  name:'Dendriten',      icon:'🌳', power:200e3,     cost:45e6 },
-    { id:'c10', name:'Neuron',         icon:'🧠', power:800e3,     cost:220e6 },
-    { id:'c11', name:'Ganglien',       icon:'🕸️', power:3e6,       cost:1.1e9 },
-    { id:'c12', name:'Zerebrum',       icon:'👑', power:12e6,      cost:5.5e9 },
-    { id:'c13', name:'Kortex',         icon:'🧿', power:45e6,      cost:28e9 },
-    { id:'c14', name:'Bewusstsein',    icon:'✨', power:180e6,     cost:140e9 },
-    { id:'c15', name:'Intelligenz',    icon:'🌟', power:700e6,     cost:700e9 },
-    { id:'c16', name:'Telepathie',     icon:'🔮', power:2.8e9,     cost:3.5e12 },
-    { id:'c17', name:'Schwarmgeist',   icon:'🌀', power:11e9,      cost:18e12 },
-    { id:'c18', name:'Gott-Modus',     icon:'⚛️', power:42e9,      cost:90e12 },
+    { id:'c1',  name:'Enzyme',           icon:'⚗️', power:2,         cost:60 },
+    { id:'c2',  name:'Katalysatoren',    icon:'🔥', power:11,        cost:550 },
+    { id:'c3',  name:'Hormone',          icon:'💊', power:55,        cost:4.5e3 },
+    { id:'c4',  name:'Neurotransmitter', icon:'⚡', power:240,       cost:35e3 },
+    { id:'c5',  name:'Synapsen',         icon:'🔗', power:1.1e3,     cost:250e3 },
+    { id:'c6',  name:'Axone',            icon:'📡', power:4.8e3,     cost:1.8e6 },
+    { id:'c7',  name:'Rezeptoren',       icon:'🔮', power:21e3,      cost:13e6 },
+    { id:'c8',  name:'Ionenkanäle',      icon:'🌊', power:92e3,      cost:90e6 },
+    { id:'c9',  name:'Dendriten',        icon:'🌳', power:400e3,     cost:650e6 },
+    { id:'c10', name:'Neuron',           icon:'🧠', power:1.7e6,     cost:4.5e9 },
+    { id:'c11', name:'Ganglien',         icon:'🕸️', power:7.5e6,     cost:32e9 },
+    { id:'c12', name:'Zerebrum',         icon:'👑', power:33e6,      cost:220e9 },
+    { id:'c13', name:'Kortex',           icon:'🧿', power:145e6,     cost:1.6e12 },
+    { id:'c14', name:'Bewusstsein',      icon:'✨', power:640e6,     cost:11e12 },
+    { id:'c15', name:'Intelligenz',      icon:'🌟', power:2.8e9,     cost:80e12 },
+    { id:'c16', name:'Telepathie',       icon:'🔮', power:12e9,      cost:550e12 },
+    { id:'c17', name:'Schwarmgeist',     icon:'🌀', power:55e9,      cost:3.8e15 },
+    { id:'c18', name:'Gott-Modus',       icon:'⚛️', power:240e9,     cost:27e15 },
+    { id:'c19', name:'Astral-Projektion',icon:'👁️', power:1.05e12,   cost:190e15 },
+    { id:'c20', name:'Quanten-Verschränkung',icon:'🪐', power:4.6e12,cost:1.3e18 },
+    { id:'c21', name:'Realitäts-Wahrnehmung',icon:'🔱', power:20e12, cost:9.5e18 },
+    { id:'c22', name:'Zeit-Manipulation', icon:'⌛', power:88e12,    cost:65e18 },
+    { id:'c23', name:'Raum-Faltung',     icon:'🌀', power:390e12,    cost:460e18 },
+    { id:'c24', name:'Kausal-Kontrolle', icon:'⚖️', power:1.7e15,    cost:3.2e21 },
+    { id:'c25', name:'Akausal-Beobachter',icon:'🧿', power:7.5e15,   cost:22e21 },
+    { id:'c26', name:'Omniszienz',       icon:'👁️', power:33e15,     cost:150e21 },
+    { id:'c27', name:'Omnipräsenz',      icon:'🌐', power:145e15,    cost:1.05e24 },
+    { id:'c28', name:'Omnipotenz',       icon:'⚛️', power:640e15,    cost:7.3e24 },
+    { id:'c29', name:'Schöpfungs-Kraft', icon:'🌟', power:2.8e18,    cost:51e24 },
+    { id:'c30', name:'Quintessenz',      icon:'💎', power:12e18,     cost:360e24 },
 ];
 
 // Initialize count properties
@@ -1049,13 +1117,14 @@ autoUpgrades.forEach(u => u.count = 0);
 clickUpgrades.forEach(u => u.count = 0);
 
 const autoClickerLevels = [
-    { cost: 10e3,  cps: 1 },
-    { cost: 75e3,  cps: 2 },
-    { cost: 400e3, cps: 4 },
-    { cost: 2e6,   cps: 8 },
-    { cost: 10e6,  cps: 12 },
-    { cost: 50e6,  cps: 18 },
-    { cost: 250e6, cps: 25 },
+    { cost: 50e3,   cps: 1 },
+    { cost: 500e3,  cps: 2 },
+    { cost: 5e6,    cps: 4 },
+    { cost: 50e6,   cps: 6 },
+    { cost: 500e6,  cps: 9 },
+    { cost: 5e9,    cps: 13 },
+    { cost: 50e9,   cps: 18 },
+    { cost: 500e9,  cps: 25 },
 ];
 
 // =============================== RESEARCH ===================================
@@ -1111,7 +1180,7 @@ const mutations = [
 const abilities = [
     { id:'photo',   icon:'☀️', name:'Photo', desc:'DPS ×8',      dur:15000, cd: 75000, kind:'dpsMult',   mult:8 },
     { id:'adrena',  icon:'⚡', name:'Adrena',desc:'Klick ×20',   dur:10000, cd: 50000, kind:'clickMult', mult:20 },
-    { id:'mitose',  icon:'🧬', name:'Mitose',desc:'+5min DPS',   dur:0,     cd:150000, kind:'instant' },
+    { id:'mitose',  icon:'🧬', name:'Mitose',desc:'+2min DPS',   dur:0,     cd:240000, kind:'instant' },
     { id:'frenzy',  icon:'🔥', name:'Frenzy',desc:'30 Klicks',   dur:3000,  cd:120000, kind:'autoclick', clicks: 30 },
 ];
 
@@ -1137,7 +1206,7 @@ function useAbility(id) {
     const now = Date.now();
     game.abilities[a.id] = { lastUsed: now, activeUntil: now + a.dur };
     if (a.kind === 'instant' && a.id === 'mitose') {
-        const gain = game.dps * 300; // 5 min of DPS
+        const gain = game.dps * 120; // 2 min of DPS
         addDna(gain);
         const r = document.querySelector('.cell-stage').getBoundingClientRect();
         spawnFloatText('+' + fmt(gain), r.left + r.width/2, r.top + r.height/2, 'gold');
@@ -1181,9 +1250,10 @@ function doDivision() {
     game.dna -= cost;
     game.divisions++;
     triggerDivisionAnim();
+    renderSatellites(true);   // spawn new satellite with appear-anim
     sndStage();
     vibrate([30, 30, 30]);
-    toast(`🧬 Zellteilung #${game.divisions} — +${Math.round((getDivisionBonus()-1)*100)}% gesamt`);
+    toast(`🧬 Zellteilung #${game.divisions} — +${Math.round((getDivisionBonus()-1)*100)}% gesamt · ${Math.min(game.divisions,16)} Zellen sichtbar`);
     const r = document.querySelector('.cell-stage').getBoundingClientRect();
     confetti(r.left + r.width/2, r.top + r.height/2);
     recalcStats();
@@ -1214,7 +1284,7 @@ function getClickSynergy() {
 let dnaDropTimer = 0;
 function maybeSpawnDnaDrop(dt) {
     dnaDropTimer += dt;
-    if (dnaDropTimer < 18000 + Math.random() * 10000) return; // ~25s avg
+    if (dnaDropTimer < 60000 + Math.random() * 60000) return; // ~90s avg, scarcer
     dnaDropTimer = 0;
     spawnDnaDrop();
 }
@@ -1292,7 +1362,7 @@ function fmtTime(ms) {
     return Math.floor(h/24) + 'd ' + (h%24) + 'h';
 }
 function getCost(u) { return Math.floor(u.cost * Math.pow(COST_GROWTH, u.count)); }
-function getOwnershipMult(c) { return Math.pow(2, Math.floor(c / 25)); } // x2 per 25 owned (slower)
+function getOwnershipMult(c) { return Math.pow(1.5, Math.floor(c / 50)); } // x1.5 per 50 owned — much slower late-game scaling
 
 // Bulk cost helper
 function getBulkCost(u, n) {
@@ -1446,34 +1516,200 @@ function updateCellVisual() {
     cellNucleusEl.setAttribute('r', Math.max(8, cellBaseRadius * 0.32));
 }
 
+// Organelle palette by upgrade type — each owned auto-upgrade contributes
+// visible structures inside the cell. Click upgrades add appendages/markings.
+const ORGANELLE_STYLES = {
+    a1:  { color:'#ff7a4a', shape:'oval' },     // Mitochondrien (orange)
+    a2:  { color:'#fff099', shape:'dot' },      // Ribosomen (yellow dots)
+    a3:  { color:'#bdf', shape:'nucleus' },     // Zellkern
+    a4:  { color:'#0f8', shape:'flag' },        // Geißeln (tail)
+    a5:  { color:'#3f9', shape:'hex' },         // Chloroplasten (green hex)
+    a6:  { color:'#9ef', shape:'circle' },      // Vakuolen (blue circle)
+    a7:  { color:'#fda', shape:'ring' },        // Zellwand
+    a8:  { color:'#fce', shape:'mesh' },        // Gewebe
+    a9:  { color:'#f59', shape:'organ' },       // Organe (red)
+    a10: { color:'#b56', shape:'fibre' },       // Muskulatur
+    a11: { color:'#fff', shape:'spark' },       // Nervensystem
+    a12: { color:'#0bf', shape:'circle' },
+    a13: { color:'#fbb', shape:'shield' },
+    a14: { color:'#bf9', shape:'pair' },
+    a15: { color:'#fbf', shape:'dot' },
+    a16: { color:'#fed', shape:'spark' },
+    a17: { color:'#9ff', shape:'ring' },
+    a18: { color:'#fff', shape:'spark' },
+};
+
 function setStageVisuals() {
     const s = stages[game.stage - 1];
     cellTargetRadius = s.radius;
     cellWobble = s.wobble;
-    // Recolor gradient
     const grad = document.querySelector('#cellGrad');
     if (grad) {
         const stops = grad.querySelectorAll('stop');
-        // Lighter to darker version of stage color
         stops[0].setAttribute('stop-color', lightenColor(s.color, 60));
         stops[1].setAttribute('stop-color', s.color);
         stops[2].setAttribute('stop-color', darkenColor(s.color, 50));
     }
-    // Organelles for higher stages
+    renderOrganelles();
+    renderAppendages();
+    renderSatellites();
+}
+
+function renderOrganelles() {
     organellesEl.innerHTML = '';
-    if (game.stage >= 3) {
-        for (let i = 0; i < Math.min(3 + game.stage, 10); i++) {
-            const a = (i / 10) * Math.PI * 2;
-            const r = cellBaseRadius * 0.55;
-            const cx = Math.cos(a) * r;
-            const cy = Math.sin(a) * r;
-            const size = 2 + Math.random() * 3;
-            const o = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            o.setAttribute('cx', cx); o.setAttribute('cy', cy);
-            o.setAttribute('r', size);
-            o.setAttribute('fill', 'rgba(255,255,255,0.18)');
-            organellesEl.appendChild(o);
+    const r = cellBaseRadius;
+    // Place organelles based on owned auto upgrades (each tier visible if owned)
+    const tiers = autoUpgrades.slice(0, 18).filter(u => u.count > 0);
+    let placed = 0;
+    tiers.forEach((u, idx) => {
+        const style = ORGANELLE_STYLES[u.id] || { color:'#fff', shape:'dot' };
+        const visualCount = Math.min(8, Math.max(1, Math.floor(Math.sqrt(u.count))));
+        for (let j = 0; j < visualCount; j++) {
+            const angle = ((placed * 0.61803) * Math.PI * 2) % (Math.PI * 2);
+            const rad = r * (0.25 + (placed * 0.07) % 0.5);
+            const cx = Math.cos(angle) * rad;
+            const cy = Math.sin(angle) * rad;
+            const node = buildOrganelle(style, cx, cy);
+            if (node) organellesEl.appendChild(node);
+            placed++;
         }
+    });
+}
+function buildOrganelle(style, cx, cy) {
+    const NS = 'http://www.w3.org/2000/svg';
+    let el;
+    switch(style.shape) {
+        case 'oval':
+            el = document.createElementNS(NS, 'ellipse');
+            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
+            el.setAttribute('rx', 3.5); el.setAttribute('ry', 2);
+            el.setAttribute('fill', style.color);
+            el.setAttribute('opacity', 0.7);
+            el.setAttribute('transform', `rotate(${(cx*cy)%180} ${cx} ${cy})`);
+            return el;
+        case 'hex': {
+            el = document.createElementNS(NS, 'polygon');
+            const s = 3, pts = [];
+            for (let k = 0; k < 6; k++) {
+                const ang = (k / 6) * Math.PI * 2;
+                pts.push((cx + Math.cos(ang)*s).toFixed(1) + ',' + (cy + Math.sin(ang)*s).toFixed(1));
+            }
+            el.setAttribute('points', pts.join(' '));
+            el.setAttribute('fill', style.color);
+            el.setAttribute('opacity', 0.65);
+            return el;
+        }
+        case 'ring':
+            el = document.createElementNS(NS, 'circle');
+            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
+            el.setAttribute('r', 3);
+            el.setAttribute('fill', 'none');
+            el.setAttribute('stroke', style.color);
+            el.setAttribute('stroke-width', 1);
+            el.setAttribute('opacity', 0.7);
+            return el;
+        case 'spark':
+            el = document.createElementNS(NS, 'circle');
+            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
+            el.setAttribute('r', 1.8);
+            el.setAttribute('fill', style.color);
+            el.setAttribute('opacity', 0.95);
+            return el;
+        default:
+            el = document.createElementNS(NS, 'circle');
+            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
+            el.setAttribute('r', 2.5);
+            el.setAttribute('fill', style.color);
+            el.setAttribute('opacity', 0.7);
+            return el;
+    }
+}
+
+function renderAppendages() {
+    const el = document.getElementById('appendages');
+    el.innerHTML = '';
+    const NS = 'http://www.w3.org/2000/svg';
+    const r = cellBaseRadius;
+    // Flagella for "Geißeln" upgrade (a4): tails sticking out
+    const geißeln = autoUpgrades.find(u => u.id === 'a4');
+    if (geißeln && geißeln.count > 0) {
+        const n = Math.min(6, Math.ceil(Math.sqrt(geißeln.count)));
+        for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + Math.PI / n;
+            const x1 = Math.cos(a) * r;
+            const y1 = Math.sin(a) * r;
+            const x2 = Math.cos(a) * (r * 1.7);
+            const y2 = Math.sin(a) * (r * 1.7);
+            const line = document.createElementNS(NS, 'line');
+            line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+            line.setAttribute('stroke', 'rgba(0,255,163,0.55)');
+            line.setAttribute('stroke-width', 1.5);
+            line.setAttribute('stroke-linecap', 'round');
+            line.setAttribute('class', 'flagellum');
+            line.style.transformOrigin = `${x1}px ${y1}px`;
+            el.appendChild(line);
+        }
+    }
+    // Cilia (cell-wide cilia ring) for Vakuolen+ (a6+): thin dashed circle
+    const vakuolen = autoUpgrades.find(u => u.id === 'a6');
+    if (vakuolen && vakuolen.count > 0) {
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', 0); c.setAttribute('cy', 0);
+        c.setAttribute('r', r + 6);
+        c.setAttribute('fill', 'none');
+        c.setAttribute('stroke', 'rgba(0,255,163,0.2)');
+        c.setAttribute('stroke-width', 1);
+        c.setAttribute('stroke-dasharray', '2 3');
+        el.appendChild(c);
+    }
+    // Cell wall for Zellwand+ (a7+): solid second ring
+    const wall = autoUpgrades.find(u => u.id === 'a7');
+    if (wall && wall.count > 0) {
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', 0); c.setAttribute('cy', 0);
+        c.setAttribute('r', r + 10);
+        c.setAttribute('fill', 'none');
+        c.setAttribute('stroke', 'rgba(255,200,100,0.35)');
+        c.setAttribute('stroke-width', 2);
+        el.appendChild(c);
+    }
+}
+
+// =============================== SATELLITE CELLS ============================
+// Each division spawns a satellite that orbits the main cell. Up to 16 visible.
+function renderSatellites(animateNew) {
+    const g = document.getElementById('satellites');
+    if (!g) return;
+    const prev = g.children.length;
+    g.innerHTML = '';
+    const NS = 'http://www.w3.org/2000/svg';
+    const N = Math.min(game.divisions, 16);
+    if (N === 0) return;
+    const orbitR = cellBaseRadius * 2.3;
+    const s = stages[game.stage - 1];
+    for (let i = 0; i < N; i++) {
+        const angle = (i / N) * Math.PI * 2;
+        const cx = Math.cos(angle) * orbitR;
+        const cy = Math.sin(angle) * orbitR;
+        const size = Math.max(6, cellBaseRadius * 0.30);
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', cx);
+        c.setAttribute('cy', cy);
+        c.setAttribute('r', size);
+        c.setAttribute('fill', 'url(#cellGrad)');
+        c.setAttribute('stroke', 'rgba(255,255,255,0.3)');
+        c.setAttribute('stroke-width', 0.5);
+        c.setAttribute('class', animateNew && i === N - 1 ? 'satellite satellite-new' : 'satellite');
+        c.style.animationDelay = (i * 0.18) + 's';
+        // Mini-nucleus on each satellite
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('cx', cx);
+        dot.setAttribute('cy', cy);
+        dot.setAttribute('r', size * 0.4);
+        dot.setAttribute('fill', 'rgba(255,255,255,0.35)');
+        g.appendChild(c);
+        g.appendChild(dot);
     }
 }
 function lightenColor(hex, amt) {
@@ -1527,7 +1763,7 @@ function maybeSpawnGolden(dt) {
     const rate = game.research.r5 ? researchTree.find(r=>r.id==='r5').effect.goldenRate : 1;
     // Achievement-driven golden rate
     const achRate = game.achievements.gold25 ? achievements.find(a=>a.id==='gold25').reward.goldenRate : 1;
-    const meanMs = 45000 / (rate * achRate); // average ~45s, faster with bonuses
+    const meanMs = 120000 / (rate * achRate); // ~2 min avg, faster with bonuses
     if (goldenTimer > meanMs * (0.5 + Math.random())) {
         spawnGolden();
         goldenTimer = 0;
@@ -1554,11 +1790,11 @@ function spawnGolden() {
 }
 function collectGolden() {
     if (!goldenEl) return;
-    const baseMult = 60;
+    const baseMult = 30;
     const resMult = game.research.r6 ? researchTree.find(r=>r.id==='r6').effect.goldenMult : 1;
     const achMult = game.achievements.gold5 ? achievements.find(a=>a.id==='gold5').reward.goldenMult : 1;
-    // 60s of DPS or 25 click power, whichever is higher
-    const reward = Math.max(game.dps * baseMult, game.clickPower * 25) * resMult * achMult;
+    // 30s of DPS or 15 click power, whichever is higher
+    const reward = Math.max(game.dps * baseMult, game.clickPower * 15) * resMult * achMult;
     const x = parseFloat(goldenEl.style.left) + 22;
     const y = parseFloat(goldenEl.style.top) + 22;
     addDna(reward);
@@ -1580,7 +1816,7 @@ function maybeSpawnMutation(dt) {
     if (game.activeMutation) return;
     mutationTimer += dt;
     const rateMult = game.research.r10 ? researchTree.find(r=>r.id==='r10').effect.mutationRate : 1;
-    const meanMs = 180000 / rateMult; // ~3 min
+    const meanMs = 420000 / rateMult; // ~7 min avg
     if (mutationTimer > meanMs * (0.7 + Math.random())) {
         const m = mutations[Math.floor(Math.random() * mutations.length)];
         game.activeMutation = m.id;
@@ -1860,8 +2096,13 @@ function toast(msg) {
 function buyAuto(id) {
     const u = autoUpgrades.find(x => x.id === id);
     if (!u) return;
+    const prevCount = u.count;
     doBuy(u);
     recalcStats();
+    if (u.count > prevCount) {
+        renderOrganelles();
+        renderAppendages();
+    }
     renderAll();
 }
 function buyClick(id) {
@@ -2347,6 +2588,7 @@ initCell();
 buildAmbientParticles();
 loadGame();
 setStageVisuals();
+renderSatellites(false);
 recalcStats();
 renderAll();
 setupAutoClicker();
