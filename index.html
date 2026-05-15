@@ -183,16 +183,56 @@
             touch-action: none;
             margin: 6px 0;
         }
-        .cell-stage svg { width: 100%; height: 100%; overflow: visible; display: block; }
+        .cell-stage #cellCanvas {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            display: block;
+            border-radius: 50%;
+            /* Subtle vignette so the WebGL scene blends with the rings instead
+               of looking like a hard rectangle. */
+            mask-image: radial-gradient(circle at 50% 50%, #000 62%, transparent 96%);
+            -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 62%, transparent 96%);
+        }
         .ring {
             position: absolute;
             border-radius: 50%;
             border: 1px solid rgba(0,255,163,0.12);
             pointer-events: none;
+            z-index: 2;
         }
         .ring.r1 { width: 88%; height: 88%; animation: rot 30s linear infinite; border-style: dashed; }
         .ring.r2 { width: 100%; height: 100%; animation: rot 50s linear infinite reverse; }
         @keyframes rot { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+        /* Biomass / phase pill — UX hint that the cluster is alive and growing. */
+        .bio-hud {
+            position: absolute;
+            left: 50%;
+            bottom: -6px;
+            transform: translate(-50%, 100%);
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 1.4px;
+            color: var(--text-dim);
+            background: rgba(8,11,20,0.55);
+            border: 1px solid rgba(0,255,163,0.18);
+            border-radius: 99px;
+            padding: 4px 10px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 4;
+        }
+        .bio-hud .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+            animation: pulse-dot 1.6s infinite ease-in-out;
+        }
+        .bio-hud b { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
+        .bio-hud .phase { color: var(--accent-2); font-weight: 700; }
 
         /* Click FX layer */
         .fx-layer { position: absolute; inset:0; pointer-events:none; z-index: 3; }
@@ -843,79 +883,19 @@
     <div class="cell-stage" id="cellStage">
         <div class="ring r2"></div>
         <div class="ring r1"></div>
-        <svg id="cellSvg" viewBox="-160 -160 320 320" preserveAspectRatio="xMidYMid meet">
-            <defs>
-                <!-- Body: pseudo-3D radial gradient (highlight → mid → shadow rim) -->
-                <radialGradient id="cellGrad" cx="32%" cy="28%" r="72%">
-                    <stop offset="0%"  stop-color="#e9fff4"/>
-                    <stop offset="18%" stop-color="#aaffd9"/>
-                    <stop offset="55%" stop-color="#00ffa3"/>
-                    <stop offset="92%" stop-color="#006e4a"/>
-                    <stop offset="100%" stop-color="#003a26"/>
-                </radialGradient>
-                <!-- Nucleus: layered for depth -->
-                <radialGradient id="nucGrad" cx="32%" cy="28%" r="70%">
-                    <stop offset="0%"  stop-color="rgba(255,255,255,0.85)"/>
-                    <stop offset="40%" stop-color="rgba(140,255,210,0.55)"/>
-                    <stop offset="100%" stop-color="rgba(0,70,45,0.7)"/>
-                </radialGradient>
-                <!-- Specular highlight overlay -->
-                <radialGradient id="specGrad" cx="32%" cy="22%" r="40%">
-                    <stop offset="0%"  stop-color="rgba(255,255,255,0.7)"/>
-                    <stop offset="60%" stop-color="rgba(255,255,255,0.1)"/>
-                    <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-                </radialGradient>
-                <!-- Membrane rim (outer thin gradient) -->
-                <radialGradient id="rimGrad" cx="50%" cy="50%" r="50%">
-                    <stop offset="80%" stop-color="rgba(0,0,0,0)"/>
-                    <stop offset="95%" stop-color="rgba(0,255,163,0.18)"/>
-                    <stop offset="100%" stop-color="rgba(0,255,163,0.45)"/>
-                </radialGradient>
-                <!-- Soft outer glow -->
-                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur stdDeviation="4" result="blur"/>
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-                <!-- Drop shadow for 3D depth -->
-                <filter id="drop" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
-                    <feOffset dx="0" dy="3" result="off"/>
-                    <feComponentTransfer><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
-                    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-                </filter>
-                <!-- Organic membrane warp: turbulence + displacement + drop shadow combined.
-                     baseFrequency / seed / scale are animated from JS at ~12fps for "breathing". -->
-                <filter id="organicWarp" x="-30%" y="-30%" width="160%" height="160%">
-                    <feTurbulence id="warpTurb" type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="3" result="turb"/>
-                    <feDisplacementMap id="warpDisp" in="SourceGraphic" in2="turb" scale="4.5" xChannelSelector="R" yChannelSelector="G" result="warped"/>
-                    <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="sa"/>
-                    <feOffset in="sa" dx="0" dy="3" result="so"/>
-                    <feComponentTransfer in="so" result="sh"><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
-                    <feMerge>
-                        <feMergeNode in="sh"/>
-                        <feMergeNode in="warped"/>
-                    </feMerge>
-                </filter>
-            </defs>
-            <!-- Daughter cells layer (renders before main cell so main is on top) -->
-            <g id="daughters"></g>
-            <!-- Appendages (flagella, cilia, cell wall rings) -->
-            <g id="appendages"></g>
-            <!-- Main cell body + nucleus + organelles + specular -->
-            <g id="mainCell">
-                <path id="cellBody" fill="url(#cellGrad)" filter="url(#organicWarp)" stroke="rgba(0,80,50,0.4)" stroke-width="0.6"/>
-                <path id="cellRim" fill="url(#rimGrad)" pointer-events="none"/>
-                <circle id="cellNucleus" cx="0" cy="0" r="22" fill="url(#nucGrad)" opacity="0.9"/>
-                <g id="organelles"></g>
-                <!-- Specular shine on top -->
-                <ellipse id="cellSpec" cx="-12" cy="-18" rx="22" ry="14" fill="url(#specGrad)" pointer-events="none"/>
-            </g>
-        </svg>
+        <!-- BioNexus: live 3D morphogenesis scene scoped to this container.
+             Replaces the SVG cell — phase machine is driven by game.stage. -->
+        <canvas id="cellCanvas" aria-label="Cellular morphogenesis"></canvas>
         <div class="combo" id="combo">
             COMBO ×<span id="comboMult">1.0</span>
             <div class="combo-bar"><div class="combo-bar-fill" id="comboFill"></div></div>
         </div>
         <div class="fx-layer" id="fxLayer"></div>
+        <div class="bio-hud">
+            <span class="dot"></span>
+            <span>Biomasse <b id="bioCount">1</b></span>
+            <span class="phase" id="bioPhase">Solo</span>
+        </div>
     </div>
 
     <div class="click-info">
@@ -1038,6 +1018,443 @@
 
 <div class="toast-wrap" id="toastWrap"></div>
 
+<!-- Three.js via import map (no build step). -->
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+}
+</script>
+
+<!-- BioNexus — GPU morphogenesis renderer scoped to #cellCanvas.
+     Exposes a tiny imperative API on window.BioNexus that the main game script
+     calls: setStage(), shockwave(), divide(), update(). Internally:
+       - InstancedMesh with adaptive count (capped to MAX_INSTANCES, scales with stage)
+       - Custom GLSL: per-instance wobble + cluster ↔ organism morph + click shockwave
+       - Phase machine driven by game.stage: SOLO → MITOSIS → CLUSTER → MORPHOGENESIS → LIFE
+     Performance: pixel ratio capped, instance count capped, geometry detail tuned for the
+     ~290px container. -->
+<script type="module">
+import * as THREE from 'three';
+
+const MAX_INSTANCES = 4000; // hard cap; mobile-safe for a ~290px canvas
+const PALETTE = {
+    membrane: new THREE.Color('#00ffa3'), // game accent green
+    organ:    new THREE.Color('#ffd24a'), // game gold (was pink in reference — recolored for brand cohesion)
+    crit:     new THREE.Color('#ff5da2'),
+    glow:     new THREE.Color('#4fd1ff'), // game accent-2 cyan
+};
+
+// Stage → simulation parameters. The 30-stage progression in the main game maps
+// onto five visible phases: SOLO (1 cell, slow pulse), DIVIDING (mitosis ramp),
+// CLUSTER (sphere), MORPHOGENESIS (sphere → organism), LIFE (autonomous swim).
+function stageToTargets(stage) {
+    const s = Math.max(1, Math.min(30, stage));
+    // smooth count curve: 1 cell at stage 1, ~MAX at stage 30
+    const t = (s - 1) / 29;
+    const count = Math.max(1, Math.round(Math.pow(t, 1.6) * MAX_INSTANCES + (1 - t) * 1));
+    // morph value: SVG-like cluster until stage 16, then morph to organism by stage 23.
+    const morph = THREE.MathUtils.clamp((s - 16) / 7, 0, 1);
+    // swim speed ramps in after morphogenesis completes.
+    const swim = THREE.MathUtils.clamp((s - 22) / 8, 0, 1);
+    // phase label for the bio-hud pill
+    let label = 'Solo';
+    if (s >= 2 && s < 8) label = 'Mitose';
+    else if (s >= 8 && s < 16) label = 'Cluster';
+    else if (s >= 16 && s < 23) label = 'Morphogenese';
+    else if (s >= 23) label = 'Lebewesen';
+    return { count, morph, swim, label };
+}
+
+// --- Noise GLSL (Ashima/Stefan Gustavson simplex 3D) -----------------------
+const SIMPLEX = `
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+float snoise(vec3 v){
+    const vec2 C=vec2(1.0/6.0,1.0/3.0);
+    const vec4 D=vec4(0.0,0.5,1.0,2.0);
+    vec3 i=floor(v+dot(v,C.yyy));
+    vec3 x0=v-i+dot(i,C.xxx);
+    vec3 g=step(x0.yzx,x0.xyz);
+    vec3 l=1.0-g;
+    vec3 i1=min(g.xyz,l.zxy);
+    vec3 i2=max(g.xyz,l.zxy);
+    vec3 x1=x0-i1+C.xxx;
+    vec3 x2=x0-i2+C.yyy;
+    vec3 x3=x0-D.yyy;
+    i=mod289(i);
+    vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+    float n_=0.142857142857;
+    vec3 ns=n_*D.wyz-D.xzx;
+    vec4 j=p-49.0*floor(p*ns.z*ns.z);
+    vec4 x_=floor(j*ns.z);
+    vec4 y_=floor(j-7.0*x_);
+    vec4 x=x_*ns.x+ns.yyyy;
+    vec4 y=y_*ns.x+ns.yyyy;
+    vec4 h=1.0-abs(x)-abs(y);
+    vec4 b0=vec4(x.xy,y.xy);
+    vec4 b1=vec4(x.zw,y.zw);
+    vec4 s0=floor(b0)*2.0+1.0;
+    vec4 s1=floor(b1)*2.0+1.0;
+    vec4 sh=-step(h,vec4(0.0));
+    vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;
+    vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+    vec3 p0=vec3(a0.xy,h.x);
+    vec3 p1=vec3(a0.zw,h.y);
+    vec3 p2=vec3(a1.xy,h.z);
+    vec3 p3=vec3(a1.zw,h.w);
+    vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+    p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
+    vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);
+    m=m*m;
+    return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}`;
+
+const vertexShader = `
+${SIMPLEX}
+attribute vec3 targetPos;
+attribute float clusterOffset;
+attribute float cellType; // 0 = membrane, 1 = organ
+uniform float time;
+uniform float morph;
+uniform float swim;
+uniform vec3  clickPos;       // world-space click impulse origin
+uniform float clickStrength;  // decays over time in JS
+
+varying vec3  vNormal;
+varying vec3  vView;
+varying float vCellType;
+varying float vGlow;
+
+void main() {
+    // The instance's normal matrix is the upper-3x3 of instanceMatrix; we
+    // re-derive it cheaply for the additive-blended look (a perfect normal is
+    // unnecessary — Fresnel only needs general orientation).
+    mat3 instNormal = mat3(instanceMatrix);
+    vNormal = normalize(normalMatrix * instNormal * normal);
+    vCellType = cellType;
+
+    // 1) Per-cell membrane wobble — gives each instance its own breathing.
+    float wob = snoise(position * 4.0 + time * 2.2 + clusterOffset) * 0.18;
+    vec3 localPos = position + normal * wob;
+
+    // 2) Apply per-instance rotation/scale/translation. clusterPos is the
+    //    translation column of instanceMatrix; we morph that toward targetPos.
+    vec4 worldLocal = instanceMatrix * vec4(localPos, 1.0);
+    vec3 clusterPos = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float m = morph * morph * (3.0 - 2.0 * morph); // smoothstep
+    vec3 basePos = mix(clusterPos, targetPos, m);
+
+    // 3) Swimming undulation (only once swim>0).
+    float phase = basePos.x * 0.25 - time * 3.0;
+    basePos.y += sin(phase) * 4.0 * swim;
+    basePos.z += cos(phase * 0.8) * 2.0 * swim;
+    basePos.x += sin(time * 5.0 + basePos.x * 0.5) * 0.2 * swim;
+
+    // worldLocal carries the scaled+rotated mesh offset around clusterPos.
+    vec3 meshOffset = worldLocal.xyz - clusterPos;
+    vec3 finalPos = basePos + meshOffset;
+
+    // 4) Click shockwave — radial push from clickPos, decays with clickStrength.
+    float d = distance(basePos, clickPos);
+    float wave = exp(-d * 0.55) * clickStrength;
+    vec3 outward = normalize(basePos - clickPos + vec3(0.0001));
+    finalPos += outward * wave * 1.8;
+    vGlow = wave;
+
+    vec4 mv = modelViewMatrix * vec4(finalPos, 1.0);
+    vView = -mv.xyz;
+    gl_Position = projectionMatrix * mv;
+}`;
+
+const fragmentShader = `
+varying vec3 vNormal;
+varying vec3 vView;
+varying float vCellType;
+varying float vGlow;
+uniform vec3 colorMembrane;
+uniform vec3 colorOrgan;
+uniform vec3 colorGlow;
+uniform float time;
+
+void main() {
+    vec3 n = normalize(vNormal);
+    vec3 v = normalize(vView);
+    float rim = 1.0 - max(dot(v, n), 0.0);
+    float fresnel = smoothstep(0.25, 1.0, rim);
+    float inner = pow(1.0 - rim, 3.0) * 0.35;
+
+    vec3 base = mix(colorMembrane, colorOrgan, vCellType);
+    if (vCellType > 0.5) {
+        base *= 1.0 + sin(time * 2.0) * 0.25;
+        fresnel = smoothstep(0.08, 1.0, rim);
+    }
+
+    vec3 col = base * (fresnel * 1.6 + inner);
+    // Click flash — bright cyan halo on cells inside the shockwave
+    col += colorGlow * vGlow * 1.4;
+
+    float alpha = clamp(fresnel + inner + vGlow * 0.6, 0.0, 1.0);
+    gl_FragColor = vec4(col, alpha);
+}`;
+
+const canvas = document.getElementById('cellCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+// Wider FOV + closer dolly than the reference. The cell-stage container is
+// small (~290px), so we want the cluster to read clearly without dead space.
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+camera.position.set(0, 0, 42);
+
+const cellGeo = new THREE.IcosahedronGeometry(0.45, 1);
+const cellMat = new THREE.ShaderMaterial({
+    vertexShader, fragmentShader,
+    uniforms: {
+        time:           { value: 0 },
+        morph:          { value: 0 },
+        swim:           { value: 0 },
+        clickPos:       { value: new THREE.Vector3() },
+        clickStrength:  { value: 0 },
+        colorMembrane:  { value: PALETTE.membrane.clone() },
+        colorOrgan:     { value: PALETTE.organ.clone() },
+        colorGlow:      { value: PALETTE.glow.clone() },
+    },
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+});
+
+const instanced = new THREE.InstancedMesh(cellGeo, cellMat, MAX_INSTANCES);
+instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+instanced.count = 1;
+scene.add(instanced);
+
+// Per-instance target morphology (a stylised nematode/bärtierchen).
+// Generated once and reused — cheap.
+const targetPositions = new Float32Array(MAX_INSTANCES * 3);
+const clusterOffsets  = new Float32Array(MAX_INSTANCES);
+const cellTypes       = new Float32Array(MAX_INSTANCES);
+const organismLength  = 28;
+for (let i = 0; i < MAX_INSTANCES; i++) {
+    let t = (Math.random() - 0.5) * 2;
+    t = Math.sign(t) * Math.pow(Math.abs(t), 0.8);
+    t = (t + 1) / 2;
+    const x = (t - 0.5) * organismLength;
+    let thickness = Math.sin(t * Math.PI) * 3.6;
+    if (t > 0.7) thickness += Math.sin((t - 0.7) * Math.PI / 0.3) * 1.2;
+    if (t < 0.1) thickness *= (t * 10);
+    const ang = Math.random() * Math.PI * 2;
+    const rad = Math.random();
+    const isOrgan = rad < 0.35 && t > 0.2 && t < 0.85;
+    const r = isOrgan ? (rad * thickness) : (Math.sqrt(rad) * thickness);
+    targetPositions[i*3]     = x;
+    targetPositions[i*3 + 1] = Math.sin(ang) * r;
+    targetPositions[i*3 + 2] = Math.cos(ang) * r;
+    clusterOffsets[i] = Math.random() * 100;
+    cellTypes[i] = isOrgan ? 1 : 0;
+}
+cellGeo.setAttribute('targetPos',     new THREE.InstancedBufferAttribute(targetPositions, 3));
+cellGeo.setAttribute('clusterOffset', new THREE.InstancedBufferAttribute(clusterOffsets, 1));
+cellGeo.setAttribute('cellType',      new THREE.InstancedBufferAttribute(cellTypes, 1));
+
+// Cluster layout — Fibonacci sphere. Per-instance scale interpolates from
+// "single hero cell" at low count to "tiny cells in a packed sphere" at high
+// count, so the player can always see a recognisable shape at any stage.
+const dummy = new THREE.Object3D();
+function layoutCluster(count) {
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    const radius = Math.pow(Math.max(1, count - 1), 1/3) * 0.95;
+    // log-interp scale: 7.5× at count=1, 1× by count≈250.
+    const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
+    const cellScale = 7.5 * (1 - sLerp) + 1 * sLerp;
+    for (let i = 0; i < count; i++) {
+        const y = count > 1 ? 1 - (i / (count - 1)) * 2 : 0;
+        const r = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * i;
+        const jitter = 1 + (Math.sin(i * 12.9898) * 0.18); // deterministic noise
+        dummy.position.set(
+            Math.cos(th) * r * radius * jitter,
+            y * radius * jitter,
+            Math.sin(th) * r * radius * jitter
+        );
+        dummy.rotation.set((i * 1.13) % Math.PI, (i * 0.91) % Math.PI, 0);
+        dummy.scale.setScalar(cellScale);
+        dummy.updateMatrix();
+        instanced.setMatrixAt(i, dummy.matrix);
+    }
+    instanced.instanceMatrix.needsUpdate = true;
+}
+
+let displayedCount = 1;
+let targets = stageToTargets(1);
+layoutCluster(1);
+
+// Plankton — soft bokeh debris in the background of the cell stage.
+// Subtle: never competes with the cluster for attention.
+const planktonCount = 220;
+const planktonGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(planktonCount * 3);
+const pSize = new Float32Array(planktonCount);
+for (let i = 0; i < planktonCount; i++) {
+    pPos[i*3]     = (Math.random() - 0.5) * 80;
+    pPos[i*3 + 1] = (Math.random() - 0.5) * 60;
+    pPos[i*3 + 2] = -10 - Math.random() * 40;
+    pSize[i] = Math.random() * 1.8 + 0.5;
+}
+planktonGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+planktonGeo.setAttribute('size',     new THREE.BufferAttribute(pSize, 1));
+const planktonMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 }, color: { value: PALETTE.glow.clone() } },
+    vertexShader: `
+        attribute float size;
+        varying float vZ;
+        void main() {
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mv;
+            gl_PointSize = size * (110.0 / -mv.z);
+            vZ = -mv.z;
+        }`,
+    fragmentShader: `
+        varying float vZ;
+        uniform vec3 color;
+        void main() {
+            vec2 c = gl_PointCoord - vec2(0.5);
+            float d = length(c);
+            if (d > 0.5) discard;
+            float a = smoothstep(0.5, 0.05, d);
+            float fade = clamp(1.0 - abs(vZ - 50.0) / 60.0, 0.05, 0.35);
+            gl_FragColor = vec4(color * 0.6, a * fade);
+        }`,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+});
+const plankton = new THREE.Points(planktonGeo, planktonMat);
+scene.add(plankton);
+
+// --- Click impulse state ---------------------------------------------------
+const clickPos = new THREE.Vector3();
+let clickStrength = 0;
+
+// --- Resize handling -------------------------------------------------------
+function resize() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    renderer.setSize(rect.width, rect.height, false);
+    camera.aspect = rect.width / rect.height;
+    camera.updateProjectionMatrix();
+}
+let resizeObserver;
+if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(canvas);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- Public API ------------------------------------------------------------
+let lastStageApplied = 1;
+const BioNexus = {
+    setStage(stage) {
+        targets = stageToTargets(stage);
+        cellMat.uniforms.morph.value = targets.morph;
+        cellMat.uniforms.swim.value  = targets.swim;
+        const phaseEl = document.getElementById('bioPhase');
+        if (phaseEl) phaseEl.textContent = targets.label;
+        if (stage !== lastStageApplied) {
+            // Re-tint membrane subtly with stage advancement.
+            const t = (stage - 1) / 29;
+            cellMat.uniforms.colorMembrane.value
+                .copy(PALETTE.membrane)
+                .lerp(PALETTE.glow, t * 0.4);
+        }
+        lastStageApplied = stage;
+    },
+
+    // Player tapped the cell stage. clickX/Y are in [-1, 1] relative to the
+    // canvas (origin at center). strength scales the visible shockwave.
+    shockwave(clickX, clickY, strength = 1, isCrit = false) {
+        // Project the 2D click into world space at z=0.
+        const r = canvas.getBoundingClientRect();
+        const aspect = r.width / r.height;
+        const halfH = Math.tan((camera.fov * Math.PI / 180) / 2) * camera.position.z;
+        clickPos.set(clickX * halfH * aspect, -clickY * halfH, 0);
+        cellMat.uniforms.clickPos.value.copy(clickPos);
+        clickStrength = Math.min(1.6, clickStrength + strength * (isCrit ? 1.4 : 0.8));
+        cellMat.uniforms.colorGlow.value.copy(isCrit ? PALETTE.crit : PALETTE.glow);
+    },
+
+    // Brief celebratory burst — used on division / milestones.
+    divide() {
+        clickStrength = Math.min(2.0, clickStrength + 1.4);
+        cellMat.uniforms.clickPos.value.set(0, 0, 0);
+    },
+
+    update(dtMs) {
+        const dt = dtMs / 1000;
+        const time = performance.now() * 0.001;
+        cellMat.uniforms.time.value = time;
+        planktonMat.uniforms.time.value = time;
+
+        // Smoothly chase the target count.
+        const tgt = targets.count;
+        if (displayedCount !== tgt) {
+            // Bigger steps when the gap is large so jumps don't feel sluggish.
+            const step = Math.max(1, Math.round(Math.abs(tgt - displayedCount) * 0.06));
+            displayedCount = tgt > displayedCount
+                ? Math.min(tgt, displayedCount + step)
+                : Math.max(tgt, displayedCount - step);
+            instanced.count = displayedCount;
+            layoutCluster(displayedCount);
+            const bioEl = document.getElementById('bioCount');
+            if (bioEl) bioEl.textContent = displayedCount.toLocaleString('de-DE');
+        }
+
+        // Smoothly chase morph/swim (in case stage changed between frames).
+        const um = cellMat.uniforms.morph;
+        um.value += (targets.morph - um.value) * Math.min(1, dt * 1.2);
+        const us = cellMat.uniforms.swim;
+        us.value += (targets.swim - us.value) * Math.min(1, dt * 0.8);
+
+        // Click impulse decay.
+        clickStrength *= Math.pow(0.012, dt); // ~halves every ~150ms
+        cellMat.uniforms.clickStrength.value = clickStrength;
+
+        // Camera idle parallax — gentle, sells the "alive" feeling.
+        const t = time * 0.18;
+        camera.position.x += (Math.sin(t) * 4 - camera.position.x) * 0.02;
+        camera.position.y += (Math.cos(t * 0.7) * 2 - camera.position.y) * 0.02;
+        camera.lookAt(0, 0, 0);
+
+        // Drift plankton sideways for a sense of fluid motion.
+        const pos = planktonGeo.attributes.position.array;
+        for (let i = 0; i < planktonCount; i++) {
+            pos[i*3] -= dt * (2.5 + (i % 3));
+            pos[i*3 + 1] += Math.sin(time + i * 0.7) * 0.04;
+            if (pos[i*3] < -45) { pos[i*3] = 45; pos[i*3 + 1] = (Math.random() - 0.5) * 60; }
+        }
+        planktonGeo.attributes.position.needsUpdate = true;
+
+        renderer.render(scene, camera);
+    },
+
+    resize,
+};
+
+window.BioNexus = BioNexus;
+// Module scripts defer, so the classic game script has already executed
+// loadGame() by the time we get here — sync to the loaded stage.
+BioNexus.setStage((window.game && window.game.stage) ? window.game.stage : 1);
+// Notify the classic script in case it wants to refresh anything stage-dependent.
+window.dispatchEvent(new Event('bionexus:ready'));
+</script>
+
 <script>
 // =============================================================================
 //  EVOLUTION — Soft-body Cell Clicker
@@ -1073,6 +1490,10 @@ let game = {
     abilities: {},   // { id: { lastUsed, activeUntil } }
     lastRealTick: Date.now(),
 };
+// Expose on window so the deferred BioNexus module can sync to the loaded
+// stage on its first tick (top-level `let` in classic scripts is NOT visible
+// on window, so we attach explicitly).
+window.game = game;
 
 // =============================== STAGES =====================================
 // 30 stages spanning subcellular → cosmic. Thresholds chosen so reaching the
@@ -1467,519 +1888,48 @@ function getMaxAffordable(u) {
     return Math.max(0, Math.floor(n));
 }
 
-// =============================== SOFT-BODY CELL =============================
-// Verlet integration with N points around a circle, spring constraints between
-// neighbors and across the diameter (to keep shape), and a soft center "core".
-// 48 points for premium smooth curves (was 24). Each point gets a random
-// per-point breathing phase and frequency so the membrane wobbles organically
-// instead of showing a 6-fold symmetric pattern.
-const NUM_POINTS = 48;
-const cellPoints = [];   // {x, y, px, py}
-let cellCenter = { x: 0, y: 0 };
-let cellBaseRadius = 38;
-let cellTargetRadius = 38;
-let cellWobble = 0.04;
-let cellPhase = 0;
-
-function initCell() {
-    cellPoints.length = 0;
-    for (let i = 0; i < NUM_POINTS; i++) {
-        const a = (i / NUM_POINTS) * Math.PI * 2;
-        const r = cellBaseRadius;
-        const x = Math.cos(a) * r;
-        const y = Math.sin(a) * r;
-        cellPoints.push({
-            x, y, px: x, py: y, baseAngle: a,
-            // Two independent low-frequency oscillators per point — sum yields
-            // smooth non-periodic motion, no visible n-fold symmetry.
-            freq1: 0.6 + Math.random() * 0.7,
-            freq2: 0.3 + Math.random() * 0.5,
-            phase1: Math.random() * Math.PI * 2,
-            phase2: Math.random() * Math.PI * 2,
-        });
-    }
-}
-
-function applyImpulse(localX, localY, strength) {
-    // Push nearest points outward from impact direction
-    let closestIdx = 0, closestDist = Infinity;
-    for (let i = 0; i < NUM_POINTS; i++) {
-        const dx = cellPoints[i].x - localX;
-        const dy = cellPoints[i].y - localY;
-        const d = dx*dx + dy*dy;
-        if (d < closestDist) { closestDist = d; closestIdx = i; }
-    }
-    // Affect closest point + neighbors with falling-off strength
-    const SPREAD = 5;
-    for (let off = -SPREAD; off <= SPREAD; off++) {
-        const idx = ((closestIdx + off) % NUM_POINTS + NUM_POINTS) % NUM_POINTS;
-        const falloff = 1 - Math.abs(off) / (SPREAD + 1);
-        const p = cellPoints[idx];
-        // Direction from impact point to this point
-        const dx = p.x - localX;
-        const dy = p.y - localY;
-        const len = Math.sqrt(dx*dx + dy*dy) || 1;
-        // Squish: pull the point INWARD (toward the click) — looks like a poke
-        const pull = -strength * falloff * 0.65;
-        // Verlet displacement
-        p.px = p.x - pull * dx / len;
-        p.py = p.y - pull * dy / len;
-        // Apply directly
-        const back = strength * falloff * 0.35;
-        p.x += back * dx / len;
-        p.y += back * dy / len;
-    }
-}
-
-function simulateCell(dt) {
-    const RADIUS = cellBaseRadius;
-    const DAMPING = 0.88;
-    const STIFFNESS = 0.18;
-    const RETURN_FORCE = 0.04;
-
-    // Smooth radius transitions
-    cellBaseRadius += (cellTargetRadius - cellBaseRadius) * 0.05;
-
-    cellPhase += dt * 0.002;
-
-    // Mitosis takeover: deformation runs separately and bypasses normal physics
-    if (mitosisActive) {
-        const t = Math.min(1, (performance.now() - mitosisStart) / MITOSIS_DURATION);
-        applyMitosisDeformation(t);
-        if (t >= 1) {
-            mitosisActive = false;
-            // Re-render daughter cells now that animation is done
-            renderDaughters();
-        }
-        return;
-    }
-
-    for (let i = 0; i < NUM_POINTS; i++) {
-        const p = cellPoints[i];
-        // Velocity via verlet
-        let vx = (p.x - p.px) * DAMPING;
-        let vy = (p.y - p.py) * DAMPING;
-
-        // Spring back toward rest position (wobbly breathing)
-        // Smooth organic breathing — two non-integer-frequency sines per point
-        const breathe = 1
-            + Math.sin(cellPhase * p.freq1 + p.phase1) * cellWobble * 0.7
-            + Math.sin(cellPhase * p.freq2 + p.phase2) * cellWobble * 0.3;
-        const restX = Math.cos(p.baseAngle) * cellBaseRadius * breathe;
-        const restY = Math.sin(p.baseAngle) * cellBaseRadius * breathe;
-
-        const fx = (restX - p.x) * RETURN_FORCE;
-        const fy = (restY - p.y) * RETURN_FORCE;
-
-        p.px = p.x;
-        p.py = p.y;
-        p.x += vx + fx;
-        p.y += vy + fy;
-    }
-
-    // Edge spring constraints (keeps cohesion)
-    for (let k = 0; k < 3; k++) {
-        for (let i = 0; i < NUM_POINTS; i++) {
-            const a = cellPoints[i];
-            const b = cellPoints[(i+1) % NUM_POINTS];
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-            const rest = (2 * Math.PI * cellBaseRadius) / NUM_POINTS;
-            const diff = (dist - rest) / dist;
-            const ox = dx * 0.5 * diff * STIFFNESS;
-            const oy = dy * 0.5 * diff * STIFFNESS;
-            a.x += ox; a.y += oy;
-            b.x -= ox; b.y -= oy;
-        }
-    }
-}
-
-function buildCellPath() {
-    // Catmull-Rom-ish smoothing to a closed SVG path
-    const pts = cellPoints;
-    let d = '';
-    const n = pts.length;
-    for (let i = 0; i < n; i++) {
-        const p0 = pts[(i - 1 + n) % n];
-        const p1 = pts[i];
-        const p2 = pts[(i + 1) % n];
-        const p3 = pts[(i + 2) % n];
-        if (i === 0) d += `M ${p1.x.toFixed(2)},${p1.y.toFixed(2)} `;
-        // Bezier control points
-        const c1x = p1.x + (p2.x - p0.x) / 6;
-        const c1y = p1.y + (p2.y - p0.y) / 6;
-        const c2x = p2.x - (p3.x - p1.x) / 6;
-        const c2y = p2.y - (p3.y - p1.y) / 6;
-        d += `C ${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)} `;
-    }
-    return d + 'Z';
-}
-
-const cellBodyEl = document.getElementById('cellBody');
-const cellRimEl = document.getElementById('cellRim');
-const cellNucleusEl = document.getElementById('cellNucleus');
-const cellSpecEl = document.getElementById('cellSpec');
-const organellesEl = document.getElementById('organelles');
-
-function updateCellVisual() {
-    const d = buildCellPath();
-    cellBodyEl.setAttribute('d', d);
-    cellRimEl.setAttribute('d', d);
-    const t = cellPhase;
-    // Nucleus slowly drifts
-    cellNucleusEl.setAttribute('cx', Math.cos(t*0.7) * 3);
-    cellNucleusEl.setAttribute('cy', Math.sin(t*0.5) * 3);
-    cellNucleusEl.setAttribute('r', Math.max(8, cellBaseRadius * 0.32));
-    // Specular highlight drifts ever so slightly
-    const sx = -cellBaseRadius * 0.32 + Math.sin(t*0.3) * 2;
-    const sy = -cellBaseRadius * 0.42 + Math.cos(t*0.27) * 2;
-    cellSpecEl.setAttribute('cx', sx);
-    cellSpecEl.setAttribute('cy', sy);
-    cellSpecEl.setAttribute('rx', cellBaseRadius * 0.48);
-    cellSpecEl.setAttribute('ry', cellBaseRadius * 0.30);
-}
-
-// Organelle palette by upgrade type — each owned auto-upgrade contributes
-// visible structures inside the cell. Click upgrades add appendages/markings.
-const ORGANELLE_STYLES = {
-    a1:  { color:'#ff7a4a', shape:'oval' },     // Mitochondrien (orange)
-    a2:  { color:'#fff099', shape:'dot' },      // Ribosomen (yellow dots)
-    a3:  { color:'#bdf', shape:'nucleus' },     // Zellkern
-    a4:  { color:'#0f8', shape:'flag' },        // Geißeln (tail)
-    a5:  { color:'#3f9', shape:'hex' },         // Chloroplasten (green hex)
-    a6:  { color:'#9ef', shape:'circle' },      // Vakuolen (blue circle)
-    a7:  { color:'#fda', shape:'ring' },        // Zellwand
-    a8:  { color:'#fce', shape:'mesh' },        // Gewebe
-    a9:  { color:'#f59', shape:'organ' },       // Organe (red)
-    a10: { color:'#b56', shape:'fibre' },       // Muskulatur
-    a11: { color:'#fff', shape:'spark' },       // Nervensystem
-    a12: { color:'#0bf', shape:'circle' },
-    a13: { color:'#fbb', shape:'shield' },
-    a14: { color:'#bf9', shape:'pair' },
-    a15: { color:'#fbf', shape:'dot' },
-    a16: { color:'#fed', shape:'spark' },
-    a17: { color:'#9ff', shape:'ring' },
-    a18: { color:'#fff', shape:'spark' },
-};
+// =============================== BIONEXUS BRIDGE ============================
+// The 2D soft-body Verlet cell + organelle/daughter SVG renderer was replaced
+// by the WebGL morphogenesis scene defined in the module above. The shims
+// below preserve the call sites the rest of this file uses (applyImpulse,
+// setStageVisuals, renderOrganelles, renderAppendages, renderDaughters,
+// triggerMitosisAnimation, MAX_DIVISIONS_VISUAL) without keeping the dead
+// SVG infrastructure around.
+const MAX_DIVISIONS_VISUAL = 6; // legacy constant — used by toast copy
 
 function setStageVisuals() {
-    const s = stages[game.stage - 1];
-    cellTargetRadius = s.radius;
-    cellWobble = s.wobble;
-    const grad = document.querySelector('#cellGrad');
-    if (grad) {
-        const stops = grad.querySelectorAll('stop');
-        stops[0].setAttribute('stop-color', lightenColor(s.color, 60));
-        stops[1].setAttribute('stop-color', s.color);
-        stops[2].setAttribute('stop-color', darkenColor(s.color, 50));
-    }
-    renderOrganelles();
-    renderAppendages();
-    renderDaughters();
+    if (window.BioNexus) window.BioNexus.setStage(game.stage);
 }
-
-function renderOrganelles() {
-    organellesEl.innerHTML = '';
-    const r = cellBaseRadius;
-    // Place organelles based on owned auto upgrades (each tier visible if owned)
-    const tiers = autoUpgrades.slice(0, 18).filter(u => u.count > 0);
-    let placed = 0;
-    tiers.forEach((u, idx) => {
-        const style = ORGANELLE_STYLES[u.id] || { color:'#fff', shape:'dot' };
-        const visualCount = Math.min(8, Math.max(1, Math.floor(Math.sqrt(u.count))));
-        for (let j = 0; j < visualCount; j++) {
-            const angle = ((placed * 0.61803) * Math.PI * 2) % (Math.PI * 2);
-            const rad = r * (0.25 + (placed * 0.07) % 0.5);
-            const cx = Math.cos(angle) * rad;
-            const cy = Math.sin(angle) * rad;
-            const node = buildOrganelle(style, cx, cy);
-            if (node) organellesEl.appendChild(node);
-            placed++;
-        }
-    });
+// Click impulse — the only argument that matters now is whether we should
+// flag this as a crit so the shockwave glows pink instead of cyan.
+function applyImpulse(localX, localY, strength) {
+    if (!window.BioNexus) return;
+    // localX/localY arrive in the legacy [-150..150] SVG viewBox space.
+    // Convert to normalized [-1..1] for BioNexus.
+    const nx = Math.max(-1, Math.min(1, localX / 150));
+    const ny = Math.max(-1, Math.min(1, localY / 150));
+    window.BioNexus.shockwave(nx, ny, Math.min(1.4, strength / 14), strength >= 18);
 }
-function buildOrganelle(style, cx, cy) {
-    const NS = 'http://www.w3.org/2000/svg';
-    let el;
-    switch(style.shape) {
-        case 'oval':
-            el = document.createElementNS(NS, 'ellipse');
-            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
-            el.setAttribute('rx', 3.5); el.setAttribute('ry', 2);
-            el.setAttribute('fill', style.color);
-            el.setAttribute('opacity', 0.7);
-            el.setAttribute('transform', `rotate(${(cx*cy)%180} ${cx} ${cy})`);
-            return el;
-        case 'hex': {
-            el = document.createElementNS(NS, 'polygon');
-            const s = 3, pts = [];
-            for (let k = 0; k < 6; k++) {
-                const ang = (k / 6) * Math.PI * 2;
-                pts.push((cx + Math.cos(ang)*s).toFixed(1) + ',' + (cy + Math.sin(ang)*s).toFixed(1));
-            }
-            el.setAttribute('points', pts.join(' '));
-            el.setAttribute('fill', style.color);
-            el.setAttribute('opacity', 0.65);
-            return el;
-        }
-        case 'ring':
-            el = document.createElementNS(NS, 'circle');
-            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
-            el.setAttribute('r', 3);
-            el.setAttribute('fill', 'none');
-            el.setAttribute('stroke', style.color);
-            el.setAttribute('stroke-width', 1);
-            el.setAttribute('opacity', 0.7);
-            return el;
-        case 'spark':
-            el = document.createElementNS(NS, 'circle');
-            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
-            el.setAttribute('r', 1.8);
-            el.setAttribute('fill', style.color);
-            el.setAttribute('opacity', 0.95);
-            return el;
-        default:
-            el = document.createElementNS(NS, 'circle');
-            el.setAttribute('cx', cx); el.setAttribute('cy', cy);
-            el.setAttribute('r', 2.5);
-            el.setAttribute('fill', style.color);
-            el.setAttribute('opacity', 0.7);
-            return el;
-    }
-}
-
-function renderAppendages() {
-    const el = document.getElementById('appendages');
-    el.innerHTML = '';
-    const NS = 'http://www.w3.org/2000/svg';
-    const r = cellBaseRadius;
-    // Flagella for "Geißeln" upgrade (a4): tails sticking out
-    const geißeln = autoUpgrades.find(u => u.id === 'a4');
-    if (geißeln && geißeln.count > 0) {
-        const n = Math.min(6, Math.ceil(Math.sqrt(geißeln.count)));
-        for (let i = 0; i < n; i++) {
-            const a = (i / n) * Math.PI * 2 + Math.PI / n;
-            const x1 = Math.cos(a) * r;
-            const y1 = Math.sin(a) * r;
-            const x2 = Math.cos(a) * (r * 1.7);
-            const y2 = Math.sin(a) * (r * 1.7);
-            const line = document.createElementNS(NS, 'line');
-            line.setAttribute('x1', x1); line.setAttribute('y1', y1);
-            line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-            line.setAttribute('stroke', 'rgba(0,255,163,0.55)');
-            line.setAttribute('stroke-width', 1.5);
-            line.setAttribute('stroke-linecap', 'round');
-            line.setAttribute('class', 'flagellum');
-            line.style.transformOrigin = `${x1}px ${y1}px`;
-            el.appendChild(line);
-        }
-    }
-    // Cilia (cell-wide cilia ring) for Vakuolen+ (a6+): thin dashed circle
-    const vakuolen = autoUpgrades.find(u => u.id === 'a6');
-    if (vakuolen && vakuolen.count > 0) {
-        const c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', 0); c.setAttribute('cy', 0);
-        c.setAttribute('r', r + 6);
-        c.setAttribute('fill', 'none');
-        c.setAttribute('stroke', 'rgba(0,255,163,0.2)');
-        c.setAttribute('stroke-width', 1);
-        c.setAttribute('stroke-dasharray', '2 3');
-        el.appendChild(c);
-    }
-    // Cell wall for Zellwand+ (a7+): solid second ring
-    const wall = autoUpgrades.find(u => u.id === 'a7');
-    if (wall && wall.count > 0) {
-        const c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', 0); c.setAttribute('cy', 0);
-        c.setAttribute('r', r + 10);
-        c.setAttribute('fill', 'none');
-        c.setAttribute('stroke', 'rgba(255,200,100,0.35)');
-        c.setAttribute('stroke-width', 2);
-        el.appendChild(c);
-    }
-}
-
-// =============================== MULTI-CELL MITOSIS =========================
-// Real biological doubling: divisions 0,1,2,3,4,5,6 -> 1,2,4,8,16,32,64 cells.
-// Each new division spawns daughter cells via a mitosis-phase animation
-// (elongate → pinch → split). After the animation completes the daughter
-// cluster is laid out around the main cell in a packed pattern.
-
-const MAX_DIVISIONS_VISUAL = 6; // cap at 64 visible daughters (2^6)
-
-function getDaughterCount() {
-    // While the mitosis animation is playing, render the pre-division count
-    // so the new daughters only pop in after the cell visibly splits.
-    const d = mitosisActive ? Math.max(0, game.divisions - 1) : game.divisions;
-    return Math.pow(2, Math.min(d, MAX_DIVISIONS_VISUAL)) - 1;
-}
-
-// Layout positions for daughter cells around the main cell. Returns an array
-// of { x, y, scale } centered on (0,0) in SVG coords. The main cell stays at
-// the center; daughters fill rings around it like a developing embryo.
-function getDaughterLayout(n) {
-    if (n <= 0) return [];
-    const positions = [];
-    const R = cellBaseRadius;
-    if (n === 1) {
-        // 2 cells total: side by side
-        positions.push({ x:  R * 1.4, y: 0, scale: 0.78 });
-    } else if (n === 3) {
-        // 4 cells: square
-        for (let i = 0; i < 3; i++) {
-            const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-            positions.push({ x: Math.cos(a) * R * 1.3, y: Math.sin(a) * R * 1.3, scale: 0.7 });
-        }
-    } else if (n <= 7) {
-        // up to 8 cells in a single ring
-        for (let i = 0; i < n; i++) {
-            const a = (i / (n + 1)) * Math.PI * 2;
-            positions.push({ x: Math.cos(a) * R * 1.4, y: Math.sin(a) * R * 1.4, scale: 0.6 });
-        }
-    } else if (n <= 15) {
-        // up to 16: two rings (inner + outer)
-        const inner = Math.min(7, Math.ceil(n / 2));
-        const outer = n - inner;
-        for (let i = 0; i < inner; i++) {
-            const a = (i / inner) * Math.PI * 2;
-            positions.push({ x: Math.cos(a) * R * 1.35, y: Math.sin(a) * R * 1.35, scale: 0.5 });
-        }
-        for (let i = 0; i < outer; i++) {
-            const a = (i / outer) * Math.PI * 2 + Math.PI / outer;
-            positions.push({ x: Math.cos(a) * R * 2.0, y: Math.sin(a) * R * 2.0, scale: 0.42 });
-        }
-    } else {
-        // 32-63 cells: dense packed circle (morula → blastula)
-        const rings = [
-            { r: 1.30, n: 7 },
-            { r: 1.85, n: 12 },
-            { r: 2.40, n: Math.min(n - 19, 20) },
-            { r: 2.85, n: Math.max(0, n - 39) },
-        ];
-        let placed = 0;
-        for (const ring of rings) {
-            for (let i = 0; i < ring.n && placed < n; i++) {
-                const a = (i / ring.n) * Math.PI * 2 + (ring.r * 0.2);
-                positions.push({
-                    x: Math.cos(a) * R * ring.r,
-                    y: Math.sin(a) * R * ring.r,
-                    scale: 0.45 - (ring.r - 1.3) * 0.08,
-                });
-                placed++;
-            }
-        }
-    }
-    return positions;
-}
-
-function renderDaughters() {
-    const g = document.getElementById('daughters');
-    if (!g) return;
-    g.innerHTML = '';
-    const NS = 'http://www.w3.org/2000/svg';
-    const positions = getDaughterLayout(getDaughterCount());
-    positions.forEach((p, i) => {
-        const baseR = cellBaseRadius * p.scale;
-        // Per-cell breathing offset
-        const phase = (i * 137.5) % 360;
-        const grp = document.createElementNS(NS, 'g');
-        grp.setAttribute('class', 'daughter');
-        grp.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
-        grp.style.animationDelay = (phase / 360 * 2.5) + 's';
-        // Cell body (gradient)
-        const body = document.createElementNS(NS, 'circle');
-        body.setAttribute('cx', 0); body.setAttribute('cy', 0);
-        body.setAttribute('r', baseR);
-        body.setAttribute('fill', 'url(#cellGrad)');
-        body.setAttribute('filter', 'url(#drop)');
-        body.setAttribute('stroke', 'rgba(0,80,50,0.4)');
-        body.setAttribute('stroke-width', 0.4);
-        // Nucleus
-        const nuc = document.createElementNS(NS, 'circle');
-        nuc.setAttribute('cx', 0); nuc.setAttribute('cy', 0);
-        nuc.setAttribute('r', baseR * 0.42);
-        nuc.setAttribute('fill', 'url(#nucGrad)');
-        nuc.setAttribute('opacity', 0.85);
-        // Specular highlight (gives a 3D feel)
-        const spec = document.createElementNS(NS, 'ellipse');
-        spec.setAttribute('cx', -baseR * 0.32);
-        spec.setAttribute('cy', -baseR * 0.42);
-        spec.setAttribute('rx', baseR * 0.5);
-        spec.setAttribute('ry', baseR * 0.32);
-        spec.setAttribute('fill', 'url(#specGrad)');
-        grp.appendChild(body);
-        grp.appendChild(nuc);
-        grp.appendChild(spec);
-        g.appendChild(grp);
-    });
-}
-
-// Mitosis animation: drives the soft-body cell through prophase → metaphase
-// (elongate) → anaphase (pinch) → telophase (release). Returns a promise that
-// resolves when the animation completes so we can re-layout daughters.
-let mitosisActive = false;
-let mitosisStart = 0;
-const MITOSIS_DURATION = 1400;
-
-function startMitosis() {
-    if (mitosisActive) return;
-    mitosisActive = true;
-    mitosisStart = performance.now();
-}
-
-function applyMitosisDeformation(t) {
-    // t in [0..1] across the mitosis duration
-    // Phase 1 (0-0.4): elongate horizontally
-    // Phase 2 (0.4-0.7): pinch in vertically at center (peanut shape)
-    // Phase 3 (0.7-1.0): release, slight bounce
-    let elongate = 0;   // 0..1, how stretched horizontally
-    let pinch = 0;      // 0..1, how pinched in middle
-    if (t < 0.4) {
-        elongate = t / 0.4;
-    } else if (t < 0.7) {
-        elongate = 1;
-        pinch = (t - 0.4) / 0.3;
-    } else {
-        elongate = 1 - (t - 0.7) / 0.3;
-        pinch = 1 - (t - 0.7) / 0.3;
-    }
-    const stretchX = 1 + elongate * 0.6;
-    const stretchY = 1 - elongate * 0.25;
-
-    for (let i = 0; i < NUM_POINTS; i++) {
-        const p = cellPoints[i];
-        const a = p.baseAngle;
-        // Compute target shape: elongated ellipse with mid-pinch
-        const cx = Math.cos(a);
-        const cy = Math.sin(a);
-        // Pinch factor: stronger near vertical axis (where cy is large), 0 elsewhere
-        const pinchFactor = pinch * Math.exp(-Math.pow(cx * 3, 2)) * Math.sign(cy || 1);
-        const targetX = cx * cellBaseRadius * stretchX;
-        const targetY = cy * cellBaseRadius * stretchY - pinchFactor * cellBaseRadius * 0.35 * cy;
-        // Strongly pull toward target (overrides normal physics)
-        p.px = p.x;
-        p.py = p.y;
-        p.x += (targetX - p.x) * 0.5;
-        p.y += (targetY - p.y) * 0.5;
-    }
-}
-
+// Mitosis / division feedback: a single full-cluster burst in the 3D scene.
 function triggerMitosisAnimation() {
-    startMitosis();
+    if (window.BioNexus) window.BioNexus.divide();
     const el = document.querySelector('.cell-stage');
-    el.classList.add('dividing');
-    setTimeout(() => el.classList.remove('dividing'), MITOSIS_DURATION + 100);
+    if (el) {
+        el.classList.add('dividing');
+        setTimeout(() => el.classList.remove('dividing'), 900);
+    }
 }
-function lightenColor(hex, amt) {
-    const m = hex.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
-    if (!m) return hex;
-    const r = Math.min(255, parseInt(m[1],16) + amt);
-    const g = Math.min(255, parseInt(m[2],16) + amt);
-    const b = Math.min(255, parseInt(m[3],16) + amt);
-    return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
-}
-function darkenColor(hex, amt) { return lightenColor(hex, -amt); }
+// Organelle / appendage / daughter SVG renderers are now no-ops — the
+// 3D cluster expresses tissue differentiation automatically through the
+// per-instance cellType attribute, and daughter cells are simply more
+// instances in the cluster.
+function renderOrganelles() {}
+function renderAppendages() {}
+function renderDaughters() {}
+
+// Pre-BioNexus placeholder — defined here so existing code calling these on
+// boot doesn't choke if the module script hasn't initialized yet.
+function initCell() { /* no-op: BioNexus owns the cell visual now. */ }
 
 // =============================== COMBO SYSTEM ===============================
 let comboCount = 0;
@@ -2800,11 +2750,9 @@ let lastFrame = performance.now();
 function visualLoop(now) {
     const dtMs = Math.min(50, now - lastFrame);
     lastFrame = now;
-    // Physics + cell path
-    simulateCell(dtMs);
-    updateCellVisual();
-    // Visual juice — all DOM/SVG writes happen here, not in gameTick.
-    OrganicWarp.tick(now);
+    // 3D morphogenesis owns the cell visual now.
+    if (window.BioNexus) window.BioNexus.update(dtMs);
+    // Ambient FX layers still live in DOM/Canvas2D.
     CellDrift.tick(now);
     ParticleField.step(dtMs / 1000);
     // UI tick
@@ -2959,30 +2907,9 @@ const ParticleField = (() => {
     return { init: resize, step };
 })();
 
-// ----- Organic membrane warp animation --------------------------------------
-// feTurbulence is GPU-cheap for low octave counts but expensive if reseeded
-// every frame at 60Hz. We throttle to ~12Hz and let smooth Verlet motion fill
-// the gaps. Displacement scale scales subtly with stage for "more alive late game".
-const OrganicWarp = (() => {
-    const turb = document.getElementById('warpTurb');
-    const disp = document.getElementById('warpDisp');
-    let lastSeed = 0;
-    return {
-        tick(now) {
-            if (now - lastSeed < 80) return;
-            lastSeed = now;
-            const t = now * 0.0008;
-            const stageBoost = Math.min(3.5, 1 + (game.stage - 1) * 0.10);
-            const baseF = (0.014 + Math.sin(t * 0.9) * 0.005).toFixed(4);
-            const scale = (3.2 + stageBoost + Math.sin(t * 0.7) * 1.4).toFixed(2);
-            turb.setAttribute('baseFrequency', baseF);
-            turb.setAttribute('seed', String(Math.floor(now / 220) % 9999));
-            disp.setAttribute('scale', scale);
-        }
-    };
-})();
-
 // ----- Sanftes Driften der Zelle im Viewport (ab Stage 5 / Geißeln) ---------
+// BioNexus has its own camera parallax, so we keep this drift much subtler
+// than before — just a slow positional offset of the whole stage, no rotation.
 const CellDrift = (() => {
     const el = document.getElementById('cellStage');
     return {
@@ -2994,12 +2921,11 @@ const CellDrift = (() => {
                 return;
             }
             el.classList.add('drifting');
-            const intensity = Math.min(34, (game.stage - 4) * 4 + (hasFlagella ? 6 : 0));
+            const intensity = Math.min(14, (game.stage - 4) * 1.5 + (hasFlagella ? 3 : 0));
             const t = now * 0.0001;
             const x = Math.sin(t * 1.3) * intensity;
             const y = Math.cos(t * 0.9) * intensity * 0.55;
-            const rot = Math.sin(t * 0.6) * 2.5;
-            el.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${rot.toFixed(2)}deg)`;
+            el.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`;
         }
     };
 })();
@@ -3010,9 +2936,8 @@ function triggerMilestone(u, threshold) {
     sndGold();
     vibrate(45);
     toast(`✨ Meilenstein ×2 — ${u.name} (Lvl ${threshold})`);
-    // Pulse the cell with a brief golden flash
-    cellPhase += 0.6; // breathe accent
-    applyImpulse(0, 0, 22);
+    // Pulse the 3D cluster with a centered shockwave + flash.
+    if (window.BioNexus) window.BioNexus.shockwave(0, 0, 1.6, true);
     const stage = document.getElementById('cellStage');
     stage.animate(
         [
