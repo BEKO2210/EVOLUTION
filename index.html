@@ -710,8 +710,7 @@
             border-color: rgba(0,255,163,0.5);
             box-shadow: 0 0 14px rgba(0,255,163,0.18);
         }
-        .ability.ready .ab-icon { animation: abReady 1.4s infinite; }
-        @keyframes abReady { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+        /* (legacy abReady removed — replaced by .ab-icon.ui-icon abPulse below) */
         .ability.cooling { opacity: 0.65; cursor: not-allowed; }
         .ability.active {
             border-color: var(--gold);
@@ -859,9 +858,241 @@
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(0,255,163,0.25); border-radius: 2px; }
+
+        /* ===== WAVE-1: ICON SYSTEM + BUTTON JUICE =========================== */
+        /* SVG icon base — sized to its container, inherits colour, has neon glow. */
+        .ui-icon {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.125em;
+            fill: currentColor;
+            stroke: currentColor;
+            stroke-width: 0;
+            pointer-events: none;
+        }
+        /* Tab icons */
+        .tab .tab-icon.ui-icon {
+            display: block;
+            width: 22px; height: 22px;
+            margin: 0 auto 2px;
+            color: var(--text-dim);
+            filter: drop-shadow(0 0 3px rgba(0,255,163,0));
+            transition: color 0.25s, filter 0.25s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            will-change: transform, filter;
+        }
+        .tab.active .tab-icon.ui-icon {
+            color: var(--accent);
+            filter: drop-shadow(0 0 8px rgba(0,255,163,0.7));
+            transform: translateY(-2px) scale(1.12);
+        }
+        .tab:hover .tab-icon.ui-icon { color: var(--accent); }
+        /* Ability icons */
+        .ab-icon.ui-icon {
+            width: 28px; height: 28px;
+            color: var(--text);
+            filter: drop-shadow(0 0 4px rgba(0,255,163,0));
+            transition: color 0.25s, filter 0.25s, transform 0.3s ease;
+        }
+        .ability.ready .ab-icon.ui-icon {
+            color: var(--accent);
+            filter: drop-shadow(0 0 10px rgba(0,255,163,0.85));
+        }
+        .ability.active .ab-icon.ui-icon {
+            color: var(--gold);
+            filter: drop-shadow(0 0 12px rgba(255,210,74,0.9));
+        }
+        .ability.cooling .ab-icon.ui-icon {
+            color: var(--text-dim);
+            filter: none;
+        }
+        /* Replaces the old emoji-scale heartbeat with a more refined pulse. */
+        .ability.ready .ab-icon.ui-icon { animation: abPulse 1.6s ease-in-out infinite; }
+        @keyframes abPulse {
+            0%, 100% { transform: scale(1); }
+            50%      { transform: scale(1.14); }
+        }
+
+        /* ===== ANIMATED TAB UNDERLINE ====================================== */
+        /* Replaces the old binary show/hide ::before with a smooth slide-in. */
+        .tab::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: var(--accent);
+            border-radius: 0 0 2px 2px;
+            box-shadow: 0 0 12px rgba(0,255,163,0.85);
+            transition: width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        left 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .tab.active::after { width: 50%; left: 25%; }
+        /* Disable the legacy ::before underline now that ::after owns it. */
+        .tab.active::before { display: none; }
+
+        /* ===== BUTTON JUICE — squish, lift, ripple ======================== */
+        .tab, .buy-btn, .card-btn, .popup-btn, .division-btn, .ability,
+        .upgrade, .ach, .research-card {
+            position: relative;
+            overflow: hidden;
+            transition: transform 90ms cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow 0.2s ease,
+                        border-color 0.2s ease,
+                        background 0.2s ease;
+        }
+        /* Press squish */
+        .tab:active, .buy-btn:active, .card-btn:active, .popup-btn:active,
+        .division-btn:active:not(:disabled), .ability:active,
+        .upgrade:active:not(.locked), .ach:active, .research-card:active {
+            transform: scale(0.965);
+        }
+        /* Hover lift — disabled on touch devices via @media hover. */
+        @media (hover: hover) {
+            .buy-btn:hover:not(.active),
+            .card-btn:hover:not(:disabled),
+            .popup-btn:hover,
+            .division-btn:hover:not(:disabled),
+            .upgrade:hover:not(.locked),
+            .ach:hover,
+            .research-card:hover:not(.bought) {
+                transform: translateY(-1px);
+                box-shadow: 0 6px 18px -8px rgba(0,255,163,0.4),
+                            0 0 0 1px rgba(0,255,163,0.18) inset;
+            }
+        }
+        /* Ripple is added as an absolutely-positioned span by JS on pointerdown. */
+        .ripple-fx {
+            position: absolute;
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: radial-gradient(circle, rgba(0,255,163,0.55), rgba(0,255,163,0));
+            pointer-events: none;
+            mix-blend-mode: screen;
+            animation: rippleOut 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .ripple-fx.crit  { background: radial-gradient(circle, rgba(255,93,162,0.6), rgba(255,93,162,0)); }
+        .ripple-fx.gold  { background: radial-gradient(circle, rgba(255,210,74,0.6), rgba(255,210,74,0)); }
+        @keyframes rippleOut {
+            to { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+        }
+
+        /* Buy-btn refinement: pill with chunky active state. */
+        .buy-btn { padding: 5px 11px; border-radius: 99px; }
+        .buy-btn.active {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #001a10;
+            font-weight: 800;
+            box-shadow: 0 4px 14px -4px rgba(0,255,163,0.5),
+                        0 0 0 1px rgba(255,255,255,0.15) inset;
+            text-shadow: 0 0 4px rgba(255,255,255,0.3);
+        }
+
+        /* Card-btn refinement: subtle gradient + edge highlight. */
+        .card-btn {
+            border-radius: 12px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset;
+        }
+        .card-btn.gold:not(:disabled) {
+            background: linear-gradient(180deg, rgba(255,210,74,0.18), rgba(255,210,74,0.05));
+            box-shadow: 0 0 0 1px rgba(255,210,74,0.35) inset, 0 0 14px -4px rgba(255,210,74,0.4);
+            color: var(--gold);
+        }
+        .card-btn.danger:not(:disabled) {
+            background: linear-gradient(180deg, rgba(255,93,162,0.18), rgba(255,93,162,0.05));
+            box-shadow: 0 0 0 1px rgba(255,93,162,0.35) inset, 0 0 14px -4px rgba(255,93,162,0.4);
+            color: var(--crit);
+        }
+        .card-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Honor reduced motion users — disable juice animations. */
+        @media (prefers-reduced-motion: reduce) {
+            .ripple-fx, .ability.ready .ab-icon.ui-icon { animation: none !important; }
+            .tab::after { transition: none; }
+        }
     </style>
 </head>
 <body>
+
+<!-- ===== SVG ICON LIBRARY =====================================================
+     Custom bio-neon icon set used everywhere a "standard emoji" used to sit.
+     Reference with: <svg class="ui-icon"><use href="#ico-name"/></svg> or
+     via the icon() helper in the game script (returns the same markup).
+     Inlined as <symbol>s so they can be styled with currentColor + drop-shadow. -->
+<svg class="ico-lib" aria-hidden="true" focusable="false" width="0" height="0" style="position:absolute">
+    <defs>
+        <!-- Tab icons -->
+        <symbol id="ico-flask" viewBox="0 0 24 24">
+            <path d="M9 3v6L5 18a2.8 2.8 0 0 0 2.5 4h9a2.8 2.8 0 0 0 2.5-4l-4-9V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 3h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M6.5 15h11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+            <circle cx="10" cy="17.5" r="1" fill="currentColor"/>
+            <circle cx="13.5" cy="14.5" r="0.7" fill="currentColor" opacity="0.8"/>
+            <circle cx="11.5" cy="20" r="0.7" fill="currentColor" opacity="0.6"/>
+        </symbol>
+        <symbol id="ico-touch" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="2.8" fill="currentColor"/>
+            <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity="0.7"/>
+            <circle cx="12" cy="12" r="10.5" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+        </symbol>
+        <symbol id="ico-microscope" viewBox="0 0 24 24">
+            <circle cx="9" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M9 8.5v2l3 2v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M7 17h6v3H7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M14.5 4.5l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
+        </symbol>
+        <symbol id="ico-trophy" viewBox="0 0 24 24">
+            <path d="M8 4h8v6a4 4 0 0 1-8 0V4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M8 6H5a2 2 0 0 0 2 4M16 6h3a2 2 0 0 1-2 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M10 14v3M14 14v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <rect x="7" y="19" width="10" height="2.5" rx="0.8" fill="currentColor"/>
+            <circle cx="12" cy="7" r="0.9" fill="currentColor"/>
+        </symbol>
+        <symbol id="ico-bolt" viewBox="0 0 24 24">
+            <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
+        </symbol>
+
+        <!-- Ability icons -->
+        <symbol id="ico-sun" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="4" fill="currentColor"/>
+            <g stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M12 1.5v3.2M12 19.3v3.2M1.5 12h3.2M19.3 12h3.2"/>
+                <path d="M4.7 4.7l2.3 2.3M17 17l2.3 2.3M19.3 4.7L17 7M7 17l-2.3 2.3"/>
+            </g>
+        </symbol>
+        <symbol id="ico-adrena" viewBox="0 0 24 24">
+            <path d="M5 12h10M14.5 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 7.5h5M3 16.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.55"/>
+        </symbol>
+        <symbol id="ico-mitose" viewBox="0 0 24 24">
+            <circle cx="7.5" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="16.5" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="7.5" cy="12" r="1.4" fill="currentColor"/>
+            <circle cx="16.5" cy="12" r="1.4" fill="currentColor"/>
+            <path d="M11.5 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+        </symbol>
+        <symbol id="ico-frenzy" viewBox="0 0 24 24">
+            <path d="M3 7l5 5-5 5M10 7l5 5-5 5M17 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+
+        <!-- Utility icons (used by Wave-1 button refresh; more land in later waves) -->
+        <symbol id="ico-dna" viewBox="0 0 24 24">
+            <path d="M7 3c0 4 10 4 10 8s-10 4-10 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M17 3c0 4-10 4-10 8s10 4 10 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M8 6h8M8 18h8M9.5 9h5M9.5 15h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+        </symbol>
+        <symbol id="ico-sparkle" viewBox="0 0 24 24">
+            <path d="M12 2l1.8 7.2L21 11l-7.2 1.8L12 20l-1.8-7.2L3 11l7.2-1.8z" fill="currentColor"/>
+        </symbol>
+        <symbol id="ico-check" viewBox="0 0 24 24">
+            <path d="M5 12l5 5L20 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+    </defs>
+</svg>
+
 
 <div class="header">
     <div class="logo"><span class="logo-dot"></span> EVOLUTION</div>
@@ -908,11 +1139,11 @@
 <div class="abilities" id="abilitiesBar"></div>
 
 <div class="tabs">
-    <button class="tab active" data-tab="auto"><span class="tab-icon">🧪</span>Auto</button>
-    <button class="tab" data-tab="click"><span class="tab-icon">👆</span>Klick</button>
-    <button class="tab" data-tab="research"><span class="tab-icon">🔬</span>Forschung<span class="badge" id="researchBadge"></span></button>
-    <button class="tab" data-tab="ach"><span class="tab-icon">🏆</span>Erfolge<span class="badge" id="achBadge"></span></button>
-    <button class="tab" data-tab="meta"><span class="tab-icon">⚡</span>Meta</button>
+    <button class="tab active" data-tab="auto"><svg class="tab-icon ui-icon"><use href="#ico-flask"/></svg>Auto</button>
+    <button class="tab" data-tab="click"><svg class="tab-icon ui-icon"><use href="#ico-touch"/></svg>Klick</button>
+    <button class="tab" data-tab="research"><svg class="tab-icon ui-icon"><use href="#ico-microscope"/></svg>Forschung<span class="badge" id="researchBadge"></span></button>
+    <button class="tab" data-tab="ach"><svg class="tab-icon ui-icon"><use href="#ico-trophy"/></svg>Erfolge<span class="badge" id="achBadge"></span></button>
+    <button class="tab" data-tab="meta"><svg class="tab-icon ui-icon"><use href="#ico-bolt"/></svg>Meta</button>
 </div>
 
 <div class="panel" id="panel-auto">
@@ -1699,10 +1930,10 @@ const mutations = [
 
 // =============================== ABILITIES ==================================
 const abilities = [
-    { id:'photo',   icon:'☀️', name:'Photo', desc:'DPS ×8',      dur:15000, cd: 75000, kind:'dpsMult',   mult:8 },
-    { id:'adrena',  icon:'⚡', name:'Adrena',desc:'Klick ×20',   dur:10000, cd: 50000, kind:'clickMult', mult:20 },
-    { id:'mitose',  icon:'🧬', name:'Mitose',desc:'+2min DPS',   dur:0,     cd:240000, kind:'instant' },
-    { id:'frenzy',  icon:'🔥', name:'Frenzy',desc:'30 Klicks',   dur:3000,  cd:120000, kind:'autoclick', clicks: 30 },
+    { id:'photo',   svgIcon:'ico-sun',     name:'Photo', desc:'DPS ×8',      dur:15000, cd: 75000, kind:'dpsMult',   mult:8 },
+    { id:'adrena',  svgIcon:'ico-adrena',  name:'Adrena',desc:'Klick ×20',   dur:10000, cd: 50000, kind:'clickMult', mult:20 },
+    { id:'mitose',  svgIcon:'ico-mitose',  name:'Mitose',desc:'+2min DPS',   dur:0,     cd:240000, kind:'instant' },
+    { id:'frenzy',  svgIcon:'ico-frenzy',  name:'Frenzy',desc:'30 Klicks',   dur:3000,  cd:120000, kind:'autoclick', clicks: 30 },
 ];
 
 function isAbilityReady(a) {
@@ -2598,7 +2829,7 @@ function renderAbilities() {
     if (!bar.children.length) {
         bar.innerHTML = abilities.map(a => `
             <div class="ability" data-id="${a.id}" onclick="useAbility('${a.id}')" title="${a.name}: ${a.desc}">
-                <div class="ab-icon">${a.icon}</div>
+                <svg class="ab-icon ui-icon"><use href="#${a.svgIcon}"/></svg>
                 <div class="ab-name">${a.name}</div>
                 <div class="ab-cd"></div>
                 <div class="ab-cd-text"></div>
@@ -2976,6 +3207,28 @@ recalcStats();
 renderAll();
 setupAutoClicker();
 checkAchievements();
+
+// ===== WAVE-1: Ripple effect, delegated ====================================
+// One pointerdown listener spawns a transient .ripple-fx span scaled to the
+// hit target. Works for every button surface in the game (.tab, .buy-btn,
+// .card-btn, .popup-btn, .ability, .upgrade, etc.) — no per-component wiring.
+const RIPPLE_SELECTOR = '.tab, .buy-btn, .card-btn, .popup-btn, .division-btn, .ability, .upgrade:not(.locked), .ach, .research-card:not(.bought)';
+document.addEventListener('pointerdown', (e) => {
+    const target = e.target.closest(RIPPLE_SELECTOR);
+    if (!target || target.disabled) return;
+    const rect = target.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.4;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const r = document.createElement('span');
+    r.className = 'ripple-fx';
+    // Tint variants: gold for affordable upgrades, crit for danger buttons.
+    if (target.classList.contains('danger') || target.classList.contains('crit')) r.classList.add('crit');
+    else if (target.classList.contains('gold') || target.classList.contains('affordable')) r.classList.add('gold');
+    r.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;`;
+    target.appendChild(r);
+    setTimeout(() => r.remove(), 600);
+}, { passive: true });
 
 // Save on page hide
 window.addEventListener('beforeunload', saveGame);
