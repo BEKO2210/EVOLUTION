@@ -204,19 +204,21 @@
         .ring.r2 { width: 100%; height: 100%; animation: rot 50s linear infinite reverse; }
         @keyframes rot { from{transform:rotate(0)} to{transform:rotate(360deg)} }
 
-        /* Biomass / phase pill — UX hint that the cluster is alive and growing. */
+        /* Biomass / phase pill — sits as a chip inside the top of the cell
+           frame so it acts as a label for the organism without colliding
+           with the click-info row below the stage. */
         .bio-hud {
             position: absolute;
             left: 50%;
-            bottom: -6px;
-            transform: translate(-50%, 100%);
+            top: 10px;
+            transform: translateX(-50%);
             display: flex; align-items: center; gap: 8px;
-            font-size: 0.62rem;
+            font-size: 0.6rem;
             text-transform: uppercase;
             letter-spacing: 1.4px;
             color: var(--text-dim);
-            background: rgba(8,11,20,0.55);
-            border: 1px solid rgba(0,255,163,0.18);
+            background: rgba(8,11,20,0.68);
+            border: 1px solid rgba(0,255,163,0.22);
             border-radius: 99px;
             padding: 4px 10px;
             backdrop-filter: blur(8px);
@@ -1207,10 +1209,13 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.setClearColor(0x000000, 0);
 
 const scene = new THREE.Scene();
-// Wider FOV + closer dolly than the reference. The cell-stage container is
-// small (~290px), so we want the cluster to read clearly without dead space.
+// Wider FOV + dynamic camera dolly (see BioNexus.update). The dolly chases a
+// target Z based on the current cluster radius, so a lone stage-1 cell fills
+// the frame as a hero element and a 4000-cell colony still fits with breathing
+// room. Initial Z is the "hero" position so first paint already looks right.
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
-camera.position.set(0, 0, 42);
+camera.position.set(0, 0, 14);
+let cameraTargetZ = 14;
 
 const cellGeo = new THREE.IcosahedronGeometry(0.45, 1);
 const cellMat = new THREE.ShaderMaterial({
@@ -1267,12 +1272,16 @@ cellGeo.setAttribute('cellType',      new THREE.InstancedBufferAttribute(cellTyp
 // "single hero cell" at low count to "tiny cells in a packed sphere" at high
 // count, so the player can always see a recognisable shape at any stage.
 const dummy = new THREE.Object3D();
+// Exposed so the camera dolly can chase it from the update loop.
+let currentClusterRadius = 0;
 function layoutCluster(count) {
     const phi = Math.PI * (3 - Math.sqrt(5));
-    const radius = Math.pow(Math.max(1, count - 1), 1/3) * 0.95;
-    // log-interp scale: 7.5× at count=1, 1× by count≈250.
+    const radius = count <= 1 ? 0 : Math.pow(count - 1, 1/3) * 0.95;
+    currentClusterRadius = radius;
+    // log-interp scale: 5× at count=1 (paired with the closer camera dolly
+    // this fills the frame), 1× by count≈250.
     const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
-    const cellScale = 7.5 * (1 - sLerp) + 1 * sLerp;
+    const cellScale = 5.0 * (1 - sLerp) + 1.0 * sLerp;
     for (let i = 0; i < count; i++) {
         const y = count > 1 ? 1 - (i / (count - 1)) * 2 : 0;
         const r = Math.sqrt(Math.max(0, 1 - y*y));
@@ -1426,10 +1435,19 @@ const BioNexus = {
         clickStrength *= Math.pow(0.012, dt); // ~halves every ~150ms
         cellMat.uniforms.clickStrength.value = clickStrength;
 
-        // Camera idle parallax — gentle, sells the "alive" feeling.
+        // Camera idle parallax + dynamic dolly. The dolly keeps the cluster
+        // filling roughly the same fraction of the frame at all sizes: a lone
+        // cell reads as a hero, a 4000-cell colony still fits with margin.
         const t = time * 0.18;
-        camera.position.x += (Math.sin(t) * 4 - camera.position.x) * 0.02;
-        camera.position.y += (Math.cos(t * 0.7) * 2 - camera.position.y) * 0.02;
+        // organism phase pulls the camera further back so the full body fits.
+        const morphPull = um.value * organismLength * 0.4;
+        cameraTargetZ = Math.max(14, currentClusterRadius * 4 + 9 + morphPull);
+        camera.position.z += (cameraTargetZ - camera.position.z) * 0.04;
+        // Subtler parallax than before — scaled with current zoom so it doesn't
+        // feel hyperactive when the camera is close to a single hero cell.
+        const parallax = camera.position.z * 0.08;
+        camera.position.x += (Math.sin(t) * parallax - camera.position.x) * 0.02;
+        camera.position.y += (Math.cos(t * 0.7) * parallax * 0.5 - camera.position.y) * 0.02;
         camera.lookAt(0, 0, 0);
 
         // Drift plankton sideways for a sense of fluid motion.
