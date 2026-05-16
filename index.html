@@ -298,9 +298,43 @@
             opacity: 0.55;
         }
         .anatomy-layer .pseudopod-hint { stroke-dasharray: 3 4; opacity: 0.7; }
+        /* Iteration 3 anatomy overlays */
+        .anatomy-layer .hex-wall {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.4;
+            stroke-linejoin: round;
+            opacity: 0.7;
+            animation: hexPulse 3.6s ease-in-out infinite;
+        }
+        @keyframes hexPulse {
+            0%, 100% { opacity: 0.45; }
+            50%      { opacity: 0.85; }
+        }
+        .anatomy-layer .osculum {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            transform-origin: var(--ox, 0) var(--oy, 0);
+            transform-box: fill-box;
+            animation: osculumBreathe 4.5s ease-in-out infinite;
+            animation-delay: var(--delay, 0s);
+            opacity: 0.8;
+        }
+        @keyframes osculumBreathe {
+            0%, 100% { transform: scale(1);   opacity: 0.55; stroke-width: 1.4; }
+            50%      { transform: scale(1.4); opacity: 0.95; stroke-width: 0.9; }
+        }
+        .anatomy-layer .hydra-disc {
+            fill: currentColor;
+            stroke: none;
+            opacity: 0.6;
+        }
         @media (prefers-reduced-motion: reduce) {
             .anatomy-layer .flagellum-path { animation: none; stroke-dasharray: none; }
             .anatomy-layer .cilium { animation: none; transform: rotate(0); }
+            .anatomy-layer .hex-wall { animation: none; opacity: 0.6; }
+            .anatomy-layer .osculum { animation: none; transform: scale(1); }
         }
         body.qp-low .anatomy-layer { filter: none; }
         .float-text {
@@ -1511,10 +1545,19 @@
            9  Paramecium  prolate ellipsoid body + 36-cilium SVG ring with
                           staggered wave animation around the silhouette
 
-     [ ] Iteration 3  — Stages 10–12 (Zellulär)
-           10 Pflanzenzelle   hexagonal tile arrangement
-           11 Schwamm         porous spheroid (holes)
-           12 Hydra           tubular body + radial tentacles
+     [✓] Iteration 3  — Stages 10–12 (Zellulär)
+           10 Pflanzenzelle   honeycomb tile tissue (XY plane) with
+                              deterministic chloroplast pattern; SVG
+                              hex-wall rings on top; chlorophyll-green
+                              palette; cytoplasmic-streaming pulse
+           11 Schwamm         porous Fibonacci sphere (cells dropped where
+                              deterministic noise > threshold); 5 SVG
+                              oscula that breathe in lockstep with the
+                              'filter' inhale/exhale signature
+           12 Hydra           cylindrical body + 6 tentacles whose cells
+                              wave per-frame (animateHydraTentacles), each
+                              tentacle with its own phase; SVG basal disc
+                              so the creature has a visual anchor
 
      [ ] Iteration 4  — Stages 13–18 (Mehrzeller body plans)
            13 Plattwurm       flat elongated ribbon
@@ -1551,7 +1594,8 @@
 <script type="importmap">
 {
     "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
 }
 </script>
@@ -1566,6 +1610,10 @@
      ~290px container. -->
 <script type="module">
 import * as THREE from 'three';
+import { EffectComposer }    from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }        from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }   from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }        from 'three/addons/postprocessing/ShaderPass.js';
 
 // Adaptive instance cap. Low-core devices get a tighter ceiling so the scene
 // stays interactive even when the cluster reaches full population. The runtime
@@ -1598,6 +1646,9 @@ const STAGE_PALETTES = {
     archaea:   { membrane: '#8b6dff', organ: '#c79dff', glow: '#aa88ff' },
     amoebe:    { membrane: '#b6ff4a', organ: '#fff36a', glow: '#d4ff9c' },
     paramec:   { membrane: '#62e9ff', organ: '#a0f4ff', glow: '#c7f9ff' },
+    plant:     { membrane: '#3aa14a', organ: '#d4ff4a', glow: '#9bff7d' }, // chlorophyll + young leaf
+    sponge:    { membrane: '#ff8a5c', organ: '#ffd17a', glow: '#ffb88a' }, // warm salmon / coral
+    hydra:     { membrane: '#5cd1a8', organ: '#a8e6c3', glow: '#7df3d4' }, // teal-symbiont
     // Late-stage fallback retains the original neon-green identity.
     organism:  { membrane: '#00ffa3', organ: '#ffd24a', glow: '#4fd1ff' },
 };
@@ -1642,15 +1693,22 @@ function getStageShape(stage) {
     if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia',      uniform:true,
                           rotation:{ y:0.18, x:0.0,  z:0.0  }, signature:'glide' };
 
-    // -- Fallback: existing cluster→organism progression for stages 10–30 --
+    // -- Iteration 3: zellulär phase (multicellular tissue) ---------------
+    if (s === 10) return { id:'plant',    count:240, morph:1, swim:0, label:'Pflanzen',   shape: shapePflanzenzelle, naturalRadius: 7.5, cellScaleHint:'tile',  anatomy:'hexgrid',     uniform:'plant',
+                           rotation:{ y:0.04, x:0.0,  z:0.0  }, signature:'streaming' };
+    if (s === 11) return { id:'sponge',   count:300, morph:1, swim:0, label:'Schwamm',    shape: shapeSchwamm,       naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pores',       uniform:true,
+                           rotation:{ y:0.10, x:0.04, z:0.0  }, signature:'filter' };
+    if (s === 12) return { id:'hydra',    count:280, morph:1, swim:0, label:'Hydra',      shape: shapeHydra,         animate: animateHydraTentacles, naturalRadius: 7.0, cellScaleHint:'micro', anatomy:'hydrafoot', uniform:true,
+                           rotation:{ y:0.08, x:0.0,  z:0.0  }, signature:'wave' };
+
+    // -- Fallback: existing cluster→organism progression for stages 13–30 --
     const t = (s - 1) / 29;
     const budget = Math.max(64, Math.floor(MAX_INSTANCES * qualityScale));
     const count = Math.max(1, Math.round(Math.pow(t, 1.6) * budget + (1 - t) * 1));
     const morph = THREE.MathUtils.clamp((s - 16) / 7, 0, 1);
     const swim  = THREE.MathUtils.clamp((s - 22) / 8, 0, 1);
-    let label = 'Zellulär';
-    if (s >= 13 && s < 19) label = 'Mehrzeller';
-    else if (s >= 19 && s < 23) label = 'Wirbeltier';
+    let label = 'Mehrzeller';
+    if (s >= 19 && s < 23) label = 'Wirbeltier';
     else if (s >= 23) label = 'Transzendent';
     return { id:'organism:'+s, count, morph, swim, label, shape: shapeRandomLifeform, naturalRadius: null, cellScaleHint:'auto', anatomy:'none' };
 }
@@ -1949,6 +2007,153 @@ function shapeParamecium(arr, count) {
     }
 }
 
+// ===== Iteration 3 shape generators (zellulär, stages 10-12) ==============
+
+function shapePflanzenzelle(arr, count) {
+    // Honeycomb tissue: cells arranged on a hexagonal grid in the XY plane,
+    // with chloroplast-style "organ" cells (set via uniform:'plant' below)
+    // sprinkled inside each tile. The slight Z jitter gives volume so the
+    // ShaderMaterial's fresnel still has something to lift.
+    //
+    // Plant-cell layout — index pattern matters because the uniform='plant'
+    // policy in applyShape colours every 4th-ish index as chloroplast.
+    const cols = 11, rows = 9;
+    const spacing = 1.55;
+    const dx = spacing;
+    const dy = spacing * Math.sqrt(3) / 2;
+    let i = 0;
+    for (let r = 0; r < rows && i < count; r++) {
+        const yPos = (r - (rows - 1) / 2) * dy;
+        const xOffset = (r & 1) ? dx / 2 : 0;
+        // Trim row width so the grid reads as roughly hexagonal (not boxy).
+        const trim = Math.abs(r - (rows - 1) / 2) >= 3 ? 1 : 0;
+        for (let c = trim; c < cols - trim && i < count; c++) {
+            const xPos = (c - (cols - 1) / 2) * dx + xOffset;
+            // Small deterministic jitter — keeps the grid from looking
+            // mechanical without dropping the honeycomb readability.
+            const jx = Math.sin(i * 12.9898) * 0.12;
+            const jy = Math.cos(i * 78.233) * 0.12;
+            const jz = Math.sin(i * 39.346) * 0.6;
+            arr[i*3]     = xPos + jx;
+            arr[i*3 + 1] = yPos + jy;
+            arr[i*3 + 2] = jz;
+            i++;
+        }
+    }
+    // Pack any leftover instances as inner chloroplasts (random within the
+    // tissue radius). Should be rare with the grid sized for ~240.
+    while (i < count) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * 4.5;
+        arr[i*3]     = Math.cos(a) * r;
+        arr[i*3 + 1] = Math.sin(a) * r;
+        arr[i*3 + 2] = (Math.random() - 0.5) * 1.5;
+        i++;
+    }
+}
+
+function shapeSchwamm(arr, count) {
+    // Porous sphere: Fibonacci-sphere with cells removed where deterministic
+    // noise exceeds a threshold — the gaps are the sponge's oscula. We need
+    // to keep filling spec.count, so each rejected sample replaces with an
+    // interior point (rim of an osculum looking inward).
+    const r = 4.5;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    let i = 0, idx = 0, attempts = 0;
+    while (i < count && attempts < count * 4) {
+        const y = 1 - ((idx % (count + 64)) / (count + 64)) * 2;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * idx;
+        idx++; attempts++;
+        // Deterministic noise — same threshold creates the same holes every
+        // time the shape re-applies, so it doesn't "shimmer" between frames.
+        const n = Math.sin(idx * 3.13) * 0.5 + Math.sin(idx * 7.7) * 0.5;
+        if (n > 0.55) continue; // pore
+        arr[i*3]     = Math.cos(th) * cr * r;
+        arr[i*3 + 1] = y * r;
+        arr[i*3 + 2] = Math.sin(th) * cr * r;
+        i++;
+    }
+    while (i < count) { arr[i*3] = arr[i*3+1] = arr[i*3+2] = 0; i++; }
+}
+
+function shapeHydra(arr, count) {
+    // Tubular body (cylinder) + 6 radial tentacles extending from the top.
+    // Tentacle cells get rewritten by animateHydraTentacles each frame so
+    // they wave like in water. Body cells stay put.
+    const TENT = 6;
+    const bodyFrac = 0.55;
+    const bodyCount = Math.floor(count * bodyFrac);
+    const tentCount = count - bodyCount;
+    const perTent = Math.floor(tentCount / TENT);
+    const extra = tentCount - perTent * TENT;
+    const bodyLen = 8.0;
+    const bodyR = 1.6;
+    // Body: spread instances across the cylinder surface deterministically.
+    for (let i = 0; i < bodyCount; i++) {
+        const u = bodyCount > 1 ? i / (bodyCount - 1) : 0.5;
+        const ang = (i * 2.39996323) % (Math.PI * 2); // golden-angle wrap
+        const y = (u - 0.5) * bodyLen;
+        // Slight bulge at midsection so it doesn't read as a perfect tube.
+        const bulge = 1.0 + 0.25 * Math.sin(u * Math.PI);
+        arr[i*3]     = Math.sin(ang) * bodyR * bulge;
+        arr[i*3 + 1] = y;
+        arr[i*3 + 2] = Math.cos(ang) * bodyR * bulge;
+    }
+    // Tentacle seed positions — straight out the top, perpendicular to body.
+    let idx = bodyCount;
+    for (let t = 0; t < TENT; t++) {
+        const baseAng = (t / TENT) * Math.PI * 2;
+        const n = perTent + (t < extra ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+            const u = (k + 1) / n;
+            const reach = bodyR + u * 4.5;
+            arr[idx*3]     = Math.sin(baseAng) * reach;
+            arr[idx*3 + 1] = bodyLen / 2 + u * 1.2;
+            arr[idx*3 + 2] = Math.cos(baseAng) * reach;
+            idx++;
+        }
+    }
+    arr._hydraTentStart = bodyCount;
+    arr._hydraTents = TENT;
+    arr._hydraPerTent = perTent;
+    arr._hydraExtra = extra;
+    arr._hydraBodyLen = bodyLen;
+    arr._hydraBodyR = bodyR;
+}
+
+function animateHydraTentacles(arr, count, time) {
+    const start = arr._hydraTentStart || 0;
+    const TENT = arr._hydraTents || 6;
+    const perTent = arr._hydraPerTent || 0;
+    const extra = arr._hydraExtra || 0;
+    const bodyLen = arr._hydraBodyLen || 8;
+    const bodyR = arr._hydraBodyR || 1.6;
+    let idx = start;
+    for (let t = 0; t < TENT; t++) {
+        const baseAng = (t / TENT) * Math.PI * 2;
+        // Each tentacle has its own phase — coordinated but not synchronised.
+        const phase = time * 1.1 + t * 0.9;
+        const n = perTent + (t < extra ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+            const u = (k + 1) / n;
+            const reach = bodyR + u * 4.5;
+            // Wave amplitude grows toward tentacle tip.
+            const wave = Math.sin(phase + u * 3.2) * 0.8 * u;
+            // Perpendicular direction in the XZ plane for the lateral wave.
+            const perpAng = baseAng + Math.PI / 2;
+            const x = Math.sin(baseAng) * reach + Math.sin(perpAng) * wave;
+            const z = Math.cos(baseAng) * reach + Math.cos(perpAng) * wave;
+            // Tentacles also bob up/down a touch — different freq for life.
+            const y = bodyLen / 2 + u * 1.2 + Math.sin(phase * 0.7 + u * 2.0) * 0.35 * u;
+            arr[idx*3]     = x;
+            arr[idx*3 + 1] = y;
+            arr[idx*3 + 2] = z;
+            idx++;
+        }
+    }
+}
+
 function shapeRandomLifeform(arr, count) {
     // The original "stylised nematode / bärtierchen" used by the cluster→
     // organism morph for stages without a dedicated shape yet.
@@ -2125,6 +2330,14 @@ const renderer = new THREE.WebGLRenderer({
 const BASE_DPR = Math.min(window.devicePixelRatio || 1, MOBILE_UA ? 1.0 : 1.5);
 renderer.setPixelRatio(BASE_DPR);
 renderer.setClearColor(0x000000, 0);
+// Cinematic colour pipeline. ACES Filmic gives membrane glows the same kind
+// of "burning into the highlights" rolloff PS4 games use; without it the
+// additive blends blow out flat-white. outputColorSpace + the increased
+// toneMappingExposure together push the scene into HDR-friendly territory
+// so the upcoming UnrealBloomPass actually has something bright to extract.
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 // Lost-context recovery: WebGL contexts can be killed by the OS (especially
 // on low-end devices). Without these hooks, the canvas freezes silently and
 // the user thinks the page crashed. Now we suspend the loop, then resume.
@@ -2239,6 +2452,15 @@ function applyShape(spec) {
             const v = (i < capsidCount) ? 0 : 1;
             if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
         }
+    } else if (spec.uniform === 'plant') {
+        // Plant tissue: ~1 in 5 cells = chloroplast (organ/yellow-green).
+        // Pattern is deterministic so the same chloroplasts light up each
+        // run, giving the tissue a recognisable repeated motif.
+        for (let i = 0; i < spec.count; i++) {
+            const r = Math.sin(i * 9.371) * Math.cos(i * 4.123);
+            const v = (r > 0.35) ? 1 : 0;
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
     } else {
         for (let i = 0; i < spec.count; i++) {
             const r = Math.sin(i * 17.731) * 43758.5453;
@@ -2324,6 +2546,49 @@ function applyAnatomy(spec) {
             parts.push(`<circle class="pseudopod-hint" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="10"/>`);
         }
         markup = parts.join('');
+    } else if (want === 'hexgrid') {
+        // Stage 10 Pflanzenzelle — honeycomb cell-wall outlines drawn on
+        // top of the 3D tissue. Two hex rings + a central hexagon read as
+        // "rigid plant wall" without competing with the 3D depth.
+        const parts = [];
+        const hex = (cx, cy, r, opa) => {
+            const pts = [];
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+                pts.push((cx + Math.cos(a)*r).toFixed(1) + ',' + (cy + Math.sin(a)*r).toFixed(1));
+            }
+            return `<polygon class="hex-wall" points="${pts.join(' ')}" opacity="${opa}"/>`;
+        };
+        parts.push(hex(0, 0, 22, 0.85));
+        const ringR = 38;
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+            parts.push(hex(Math.cos(a) * ringR, Math.sin(a) * ringR, 22, 0.55));
+        }
+        markup = parts.join('');
+    } else if (want === 'pores') {
+        // Stage 11 Schwamm — a handful of oscula (large pores) drawn as
+        // breathing circles. The pulse animation timing matches the
+        // 'filter' signature on the 3D side so the inhale/exhale rhythm
+        // reads across both layers.
+        const N = 5;
+        const parts = [];
+        for (let i = 0; i < N; i++) {
+            const a = (i / N) * Math.PI * 2 + 0.3;
+            const r = 42;
+            const cx = Math.cos(a) * r;
+            const cy = Math.sin(a) * r;
+            const delay = ((i / N) * 0.6).toFixed(2);
+            parts.push(`<circle class="osculum" style="--ox:${cx.toFixed(1)};--oy:${cy.toFixed(1)};--delay:${delay}s" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="8"/>`);
+        }
+        markup = parts.join('');
+    } else if (want === 'hydrafoot') {
+        // Stage 12 Hydra — basal disc at the bottom of the body. Hydra
+        // anchor themselves with a sticky foot; the disc gives the creature
+        // a "stand" so it doesn't visually float.
+        markup = ''
+          + '<ellipse class="hydra-disc" cx="0" cy="78" rx="22" ry="6" opacity="0.6"/>'
+          + '<ellipse class="hydra-disc" cx="0" cy="78" rx="14" ry="3" opacity="0.85"/>';
     }
     svg.innerHTML = markup;
 }
@@ -2353,6 +2618,11 @@ function layoutCluster(count) {
         // small enough that ~200 cells still feel like discrete organelles
         // rather than one blob.
         cellScale = 0.95;
+    } else if (hint === 'tile') {
+        // Tissue-grid layouts (plant cells, sponge): each instance is its
+        // own visible tile, so we want them slightly larger than micro to
+        // suggest fused cell walls.
+        cellScale = 1.15;
     } else {
         const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
         cellScale = 5.0 * (1 - sLerp) + 1.0 * sLerp;
@@ -2432,6 +2702,10 @@ function resize() {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     renderer.setSize(rect.width, rect.height, false);
+    if (typeof composer !== 'undefined' && composer) {
+        composer.setSize(rect.width, rect.height);
+        if (bloomPass) bloomPass.resolution.set(rect.width, rect.height);
+    }
     camera.aspect = rect.width / rect.height;
     camera.updateProjectionMatrix();
 }
@@ -2443,6 +2717,62 @@ if (typeof ResizeObserver !== 'undefined') {
 window.addEventListener('resize', resize);
 resize();
 
+// --- Post-processing pipeline ---------------------------------------------
+// EffectComposer chain: scene render -> UnrealBloom -> tiny vignette/CA pass.
+// This is the single biggest "PS4 look" win: the membrane fresnel + click
+// shockwaves bloom out into the surrounding fluid like real HDR highlights.
+// usePost gets flipped off by the Low quality preset because the bloom pass
+// alone roughly doubles per-frame GPU work.
+let usePost = true;
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+// Bloom strength tuned so the additive cell glow lifts without smearing.
+// Threshold 0.55 means only highlights brighter than that bloom — the
+// fresnel rim + click flashes pop, the bulk membrane stays sharp.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.85, 0.65, 0.55);
+composer.addPass(bloomPass);
+// Subtle vignette + chromatic-aberration finishing pass. Sits at the very
+// end of the chain. Strengths kept low — this is polish, not effect-of-the-
+// month spam. Looks like a lens, not a filter.
+const finishPass = new ShaderPass({
+    uniforms: {
+        tDiffuse: { value: null },
+        uVignette: { value: 0.32 },  // 0 = off, 1 = blackout corners
+        uCA:       { value: 0.6 },   // chromatic aberration radius factor
+        uTime:     { value: 0 },
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uVignette;
+        uniform float uCA;
+        uniform float uTime;
+        varying vec2 vUv;
+        void main() {
+            vec2 c = vUv - 0.5;
+            float r = length(c);
+            // Chromatic aberration radius scales with distance from center —
+            // imitates a real fast lens. uCA is in pixels-of-1024 units.
+            float caStrength = uCA * 0.0035 * r;
+            vec2 dir = normalize(c + vec2(1e-6));
+            vec3 col;
+            col.r = texture2D(tDiffuse, vUv + dir * caStrength).r;
+            col.g = texture2D(tDiffuse, vUv).g;
+            col.b = texture2D(tDiffuse, vUv - dir * caStrength).b;
+            // Vignette: soft falloff, smoother than the typical pow curve.
+            float vig = smoothstep(0.95, 0.25, r);
+            col *= mix(1.0, vig, uVignette);
+            gl_FragColor = vec4(col, 1.0);
+        }
+    `,
+});
+finishPass.renderToScreen = true;
+composer.addPass(finishPass);
+
 // --- Public API ------------------------------------------------------------
 let lastStageApplied = 1;
 let bioPaused = false;
@@ -2451,9 +2781,23 @@ const BioNexus = {
         qualityScale = Math.max(0.1, Math.min(1.0, s));
         // Recompute target count with the new budget.
         targets = stageToTargets(lastStageApplied);
+        // Bloom strength scales with quality so Low-end devices still
+        // benefit from tone mapping but skip the expensive bloom blur.
+        usePost = qualityScale > 0.45;
+        if (bloomPass) {
+            bloomPass.strength = qualityScale > 0.8 ? 0.95
+                               : qualityScale > 0.5 ? 0.65
+                               : 0.0;
+            bloomPass.radius   = qualityScale > 0.8 ? 0.75 : 0.55;
+        }
+        if (finishPass) {
+            finishPass.uniforms.uVignette.value = qualityScale > 0.45 ? 0.32 : 0.0;
+            finishPass.uniforms.uCA.value       = qualityScale > 0.8  ? 0.6  : 0.0;
+        }
     },
     setPixelRatioScale(s) {
         renderer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
+        composer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
         resize();
     },
     setPaused(p) { bioPaused = !!p; },
@@ -2599,6 +2943,23 @@ const BioNexus = {
             signatureOffset.x = Math.sin(time * 0.6) * 1.5;
             signatureOffset.y = Math.sin(time * 0.4) * 0.3;
             pulseTarget = 0;
+        } else if (sig === 'streaming') {
+            // Stage 10 Pflanzenzelle — cytoplasmic streaming. Slow rolling
+            // breath (cells "transpire") with a faster, fainter overtone for
+            // the chloroplast-cells lit by the existing organ-pulse term.
+            const slow = 0.5 + 0.5 * Math.sin(time * 0.45);
+            pulseTarget = slow * 0.55;
+        } else if (sig === 'filter') {
+            // Stage 11 Schwamm — water-filter inhale/exhale through the
+            // oscula. Asymmetric: long inhale (intake), short pulse out.
+            const phase = (time * 0.4) % (Math.PI * 2);
+            const exhale = Math.exp(-Math.pow((phase - Math.PI), 2) * 4); // sharp pulse at π
+            pulseTarget = 0.25 + exhale * 0.7;
+        } else if (sig === 'wave') {
+            // Stage 12 Hydra — the tentacle wave (per-frame animate) is the
+            // hero. Body adds a slow sway pulse so the whole creature feels
+            // like it's gently breathing while the arms drift.
+            pulseTarget = 0.3 + 0.2 * Math.sin(time * 0.7);
         }
         // Lerp the body-pulse uniform smoothly so changes between stages
         // ease in (avoids a "pop" the instant the signature changes).
@@ -2659,7 +3020,14 @@ const BioNexus = {
         }
         planktonGeo.attributes.position.needsUpdate = true;
 
-        renderer.render(scene, camera);
+        // Route through EffectComposer (bloom + finish pass) on Mid/High,
+        // direct render on Low. usePost is wired by setQualityScale().
+        if (usePost && composer) {
+            finishPass.uniforms.uTime.value = time;
+            composer.render(dt);
+        } else {
+            renderer.render(scene, camera);
+        }
     },
 
     resize,
@@ -3842,7 +4210,6 @@ function _refreshList(kind) {
     const state = _listState[kind];
     if (!state.built) { _buildList(kind); return; }
     const list = kind === 'auto' ? autoUpgrades : clickUpgrades;
-    // Buy-mode changed? Rebuild bulk-label visibility once.
     const buyModeChanged = state.lastBuyMode !== game.buyMode;
     if (buyModeChanged) state.lastBuyMode = game.buyMode;
     const now = Date.now();
@@ -3850,35 +4217,56 @@ function _refreshList(kind) {
         const u = list[i];
         const row = state.rows[i];
         if (!row) continue;
-        // Locked rows: unlock if predecessor is now bought (requires rebuild).
         if (row.classList.contains('locked')) {
             if (i > 0 && list[i-1].count > 0) { _buildList(kind); return; }
             continue;
         }
-        let n = (game.buyMode === 'max') ? Math.max(1, getMaxAffordable(u)) : game.buyMode;
-        const cost = getBulkCost(u, n);
-        const canAfford = game.dna >= getCost(u);
+        // Affordability + displayed cost must agree. Previously the display
+        // showed the bulk price (e.g. "5B" for ×100) while the affordable
+        // class only required affording ONE upgrade — so users saw "5B"
+        // glowing green even when they had 50B, then got fewer than 100
+        // when they actually clicked. The new contract:
+        //   - In ×1 mode:    show single-cost, affordable iff dna >= cost
+        //   - In ×N mode:    show cost of N if you can afford all N (green);
+        //                    otherwise show what you'd actually buy + its
+        //                    cost (the doBuy() partial-buy code already
+        //                    handles the underflow at click time).
+        //   - In Max mode:   already shows the affordable count + its cost.
+        const requested = (game.buyMode === 'max') ? Math.max(1, getMaxAffordable(u)) : game.buyMode;
+        const requestedCost = getBulkCost(u, requested);
+        let displayN = requested;
+        let displayCost = requestedCost;
+        let canAfford = game.dna >= requestedCost;
+        if (!canAfford && game.buyMode !== 1 && game.buyMode !== 'max') {
+            const afford = getMaxAffordable(u);
+            if (afford > 0) {
+                displayN = afford;
+                displayCost = getBulkCost(u, afford);
+                canAfford = true;
+            }
+        }
         row.classList.toggle('affordable', canAfford);
         const pulse = u._milestoneAt && (now - u._milestoneAt < 900);
         row.classList.toggle('milestone-pulse', !!pulse);
         const costEl = row.querySelector('[data-role="cost"]');
         if (costEl) {
-            costEl.textContent = fmt(cost);
+            costEl.textContent = fmt(displayCost);
             costEl.classList.toggle('no-afford', !canAfford);
         }
-        if (buyModeChanged) {
-            const bulkEl = row.querySelector('[data-role="bulk"]');
-            if (bulkEl) {
-                if (game.buyMode !== 1) {
-                    bulkEl.textContent = `kauft ${n}`;
-                    bulkEl.style.display = '';
-                } else {
-                    bulkEl.style.display = 'none';
-                }
+        // Bulk label: show "kauft N" whenever a non-×1 mode is active.
+        // Also flag a partial buy with "N/M" so the player sees the
+        // discount from the requested quantity at a glance.
+        const bulkEl = row.querySelector('[data-role="bulk"]');
+        if (bulkEl) {
+            if (game.buyMode === 1) {
+                bulkEl.style.display = 'none';
+            } else if (displayN === requested) {
+                bulkEl.textContent = `kauft ${displayN}`;
+                bulkEl.style.display = '';
+            } else {
+                bulkEl.textContent = `kauft ${displayN}/${requested}`;
+                bulkEl.style.display = '';
             }
-        } else if (game.buyMode === 'max') {
-            const bulkEl = row.querySelector('[data-role="bulk"]');
-            if (bulkEl) bulkEl.textContent = `kauft ${n}`;
         }
     }
 }
