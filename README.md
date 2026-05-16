@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-003 abgeschlossen: Daten-Layer + Tests)** |
+| Phase | **1 — Engine-Prototyp (P1-004 abgeschlossen: Save-System + Tests)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + Autoloads + DataLoader+Tests (bis P1-003), Systeme folgen in P1-004..P1-013 |
+| Godot-Projekt | ✓ Skelett + Autoloads + DataLoader + SaveSystem mit Tests (bis P1-004), Systeme folgen in P1-005..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,9 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell läuft der DataLoader-Validierungstest:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen zwei Test-Suites:
+
+**`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
 - alle 7 JSON-Files laden
 - erwartete Item-Counts (30/30/30/12/4/27)
@@ -115,6 +117,21 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - alle Enum-Werte aus dem Allowlist (research effects, ability kinds, achievement conditions/rewards)
 - `unlock_after_id`-Verkettungen intakt
 - Lookups treffen + Misses returnen sauber null
+
+**`tests/test_save_system.gd`** — Save-System-Integrität (überschreibt **Slot 3** während der Tests, säubert nach sich auf):
+
+- Round-Trip preserved alle GameState-Felder
+- 100-Cycle Save/Load ohne Degradation
+- Checksum-Korruption wird erkannt
+- JSON-Korruption wird erkannt
+- Fehlende Checksum wird erkannt
+- Manipuliertes Feld wird via Checksum-Mismatch erkannt
+- Missing-Slot-Load returnt sauber false
+- Ungültige Slots (-1, 99) werden abgelehnt
+- Export-to-File / Import-from-File Round-Trip
+- Import refused bei korruptem External-File
+- `list_slots()` reportet korrekte Metadaten
+- `slot_exists()` + `delete_slot()` arbeiten korrekt
 
 Exit-Code 0 = grün, 1 = Failure (Details im Output).
 
