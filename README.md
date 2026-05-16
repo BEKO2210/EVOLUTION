@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-005 abgeschlossen: TickSystem + Auto-Save)** |
+| Phase | **1 — Engine-Prototyp (P1-006 abgeschlossen: ClickSystem + UpgradeSystem)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + 7 Autoloads + DataLoader + SaveSystem + TickSystem mit Tests (bis P1-005), Systeme folgen in P1-006..P1-013 |
+| Godot-Projekt | ✓ Skelett + 9 Autoloads + DataLoader + SaveSystem + TickSystem + ClickSystem + UpgradeSystem mit Tests (bis P1-006), Systeme folgen in P1-007..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen drei Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen fünf Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -142,6 +142,32 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - `pause()` stoppt beide Ticks vollständig
 - `resume()` startet den Logic-Tick wieder
 - `set_auto_save_enabled()` togglet das Auto-Save-Gate korrekt
+
+**`tests/test_upgrade_system.gd`** — Upgrade-Käufe, Kosten-Mathe, Meilensteine:
+
+- `get_count` default 0
+- Kosten-Formel `cost_base * 1.15^count`
+- Bulk-Kosten als geometrische Reihe
+- `get_max_affordable` exakt am Schwellenwert
+- `buy()` deduktiert DNA + erhöht Count
+- `buy()` failed sauber bei zu wenig DNA
+- `buy_bulk(n)` als atomare Transaktion
+- `buy_max()` kauft genau bis zur Affordable-Grenze
+- Meilenstein-Multiplier-Tabelle: 1/2/4/8/16 an Counts 0/10/25/50/100
+- `milestone_crossed`-Signal feuert für jeden gekreuzten Threshold
+- `recalc_stats` produziert korrektes DPS für Auto + Click-Power für Click
+- Meilenstein-Verdopplung wird in DPS reflektiert
+- `upgrade_purchased`-Signal liefert id + new_count + total_cost
+
+**`tests/test_click_system.gd`** — Klick-Loop mit Combo + Crit:
+
+- `register_click` addiert mindestens `click_power` zu DNA
+- `total_clicks`-Counter inkrementiert
+- `click_landed`-Signal feuert mit (amount, pos, is_crit, combo)
+- Combo-Counter steigt bei schnellen Klicks und resetet nach `time_window_ms` Stille
+- Combo cappt bei `click_count_cap` (60)
+- Combo-Multiplier ist 1.0 unterhalb `ramp_start_clicks`, wächst linear bis `base_max` (3.0) bei `ramp_end_clicks`
+- `reset_combo()` setzt zurück
 
 Exit-Code 0 = grün, 1 = Failure (Details im Output).
 

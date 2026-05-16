@@ -16,10 +16,17 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-; Order matters: GameState first (other systems reference it),
-; SaveSystem + DataLoader before AudioManager (which reads settings),
-; SteamAPI + Telemetry next (peripheral, opt-in),
-; TickSystem last (depends on SaveSystem.SLOT_CLOUD + DataLoader.balance).
+; Order matters — each line below depends only on lines above it.
+; GameState        : single source of truth, no deps
+; SaveSystem       : reads/writes GameState
+; DataLoader       : reads JSON, independent
+; AudioManager     : reads GameState.sound flag
+; SteamAPI         : independent (stub today)
+; Telemetry        : independent (stub today)
+; TickSystem       : subscribes via signal, calls SaveSystem.save + reads DataLoader.balance
+; ClickSystem      : reads GameState.click_power (derived), writes GameState.dna
+; UpgradeSystem    : reads DataLoader.upgrades_*, writes GameState.dna/dps/click_power/upgrade_counts,
+;                    subscribes to TickSystem.logic_tick for DPS accumulation
 GameState="*res://scripts/autoload/game_state.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
 DataLoader="*res://scripts/autoload/data_loader.gd"
@@ -27,6 +34,8 @@ AudioManager="*res://scripts/autoload/audio_manager.gd"
 SteamAPI="*res://scripts/autoload/steam_api.gd"
 Telemetry="*res://scripts/autoload/telemetry.gd"
 TickSystem="*res://scripts/autoload/tick_system.gd"
+ClickSystem="*res://scripts/autoload/click_system.gd"
+UpgradeSystem="*res://scripts/autoload/upgrade_system.gd"
 
 [display]
 
