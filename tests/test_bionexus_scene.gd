@@ -95,15 +95,19 @@ func _test_multimesh_is_configured() -> void:
 	if not mm.use_custom_data:
 		_failures.append("MultiMesh.use_custom_data must be true (clusterOffset packed there)")
 		return
-	# Per-instance data should be non-default for at least the first instance
-	# (proves _seed_instance_data ran successfully).
-	var first_color: Color = mm.get_instance_color(0)
-	if first_color == Color(0, 0, 0, 0):
-		_failures.append("First instance color is identity — _seed_instance_data did not run")
+	# Per-instance data should be non-default for instances beyond the
+	# stage-1 shape's count (proves _seed_instance_data ran for the full
+	# 4000-instance buffer, not just the active stage). Index 1000 is
+	# guaranteed to be untouched by every per-stage shape generator
+	# (no shape exceeds ~450 cells).
+	var sentinel_idx: int = 1000
+	var sentinel_color: Color = mm.get_instance_color(sentinel_idx)
+	if sentinel_color == Color(0, 0, 0, 0):
+		_failures.append("Instance %d color is identity — _seed_instance_data did not seed full buffer" % sentinel_idx)
 		return
-	var first_custom: Color = mm.get_instance_custom_data(0)
-	if first_custom == Color(0, 0, 0, 0):
-		_failures.append("First instance custom data is identity — _seed_instance_data did not run")
+	var sentinel_custom: Color = mm.get_instance_custom_data(sentinel_idx)
+	if sentinel_custom == Color(0, 0, 0, 0):
+		_failures.append("Instance %d custom data is identity — _seed_instance_data did not seed full buffer" % sentinel_idx)
 		return
 	# visible_instance_count should reflect stage 1 (= 1 cell).
 	if mm.visible_instance_count != 1:

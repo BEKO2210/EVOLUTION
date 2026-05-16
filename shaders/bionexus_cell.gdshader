@@ -87,10 +87,14 @@ varying float v_cell_type;
 varying float v_glow;
 
 void vertex() {
-	// Unpack per-instance data from MultiMesh.
-	vec3 target_pos      = INSTANCE_CUSTOM.xyz;   // organism position
-	float cluster_offset = INSTANCE_CUSTOM.w;     // noise phase per instance
-	float cell_type      = COLOR.a;               // 0=membrane, 1=organ
+	// Unpack per-instance data from MultiMesh. The wiring comment in
+	// bionexus.gd is the source of truth:
+	//   COLOR.rgb  -> target_pos   (organism / per-stage shape position)
+	//   COLOR.a    -> cell_type    (0=membrane, 1=organ)
+	//   CUSTOM.x   -> cluster_offset (deterministic per-instance noise phase)
+	vec3 target_pos      = COLOR.rgb;
+	float cell_type      = COLOR.a;
+	float cluster_offset = INSTANCE_CUSTOM.x;
 	v_cell_type = cell_type;
 
 	// 1) Per-cell membrane wobble — each instance breathes on its own phase.
