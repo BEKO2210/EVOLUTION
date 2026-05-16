@@ -11,6 +11,7 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 - [Projektstatus](#projektstatus)
 - [HTML-Prototyp lokal öffnen](#html-prototyp-lokal-öffnen)
+- [Godot-Projekt lokal öffnen](#godot-projekt-lokal-öffnen)
 - [Ordnerstruktur](#ordnerstruktur)
 - [Phase-0-Dokumente](#phase-0-dokumente)
 - [Extrahierte Daten (`data/`)](#extrahierte-daten-data)
@@ -25,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **0 — Pre-Production (Foundation Docs + Daten-Extraktion)** |
+| Phase | **1 — Engine-Prototyp (gestartet, P1-001)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ⬜ Phase 1 (kommt) |
+| Godot-Projekt | ✓ Skelett vorhanden (P1-001), Systeme folgen in P1-002..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -83,6 +84,24 @@ Er wird **nicht** zum Steam-Release gepusht. Die finale Engine-Implementation is
 
 ---
 
+## Godot-Projekt lokal öffnen
+
+**Vorausgesetzt:** Godot 4.3-stable lokal installiert (siehe `.godot-version`).
+
+1. Godot Editor starten
+2. **Import** → `project.godot` aus diesem Repo auswählen
+3. Godot generiert die Import-Cache (kann beim ersten Mal 10–30 s dauern)
+4. **F5** drücken → `scenes/main.tscn` startet als Hauptszene
+5. Ein Fenster mit dem Bootstrap-Label öffnet sich, Konsole zeigt `[Evolution] Phase 1 skeleton booted — engine ...`
+
+**Wenn Godot eine andere Version hat:** Phase-1-Backlog P1-001 sagt „Patch-Version pinnen". Wenn deine lokale Godot-Version vom Pin abweicht und das Projekt nicht öffnet:
+1. Korrekte Version via [Godot-Downloads](https://godotengine.org/download/archive/) installieren, ODER
+2. Wenn du bewusst eine neuere Version testest: in einem separaten Branch `project.godot:config/features` und `.godot-version` updaten, vor PR mit dem Original-Pin auf Kompatibilität testen.
+
+Aktueller Stand P1-001: das Projekt ist ein **leeres Skelett**. Alle Game-Systeme sind no-op. Real-Code landet in P1-002 bis P1-013 (siehe `production/phase-1-backlog.md`).
+
+---
+
 ## Ordnerstruktur
 
 ```
@@ -130,21 +149,27 @@ EVOLUTION/
     └── definition-of-done.md
 ```
 
-Geplant (kommt in Phase 1, noch nicht hier):
+Aktiv seit P1-001 (Phase 1):
 
 ```
 EVOLUTION/
-├── project.godot                 ← Godot-Projekt
-├── .godot-version                ← fixierte Godot-Patch-Version
-├── scenes/
-├── scripts/
-├── shaders/
-├── assets/
-├── localization/
-├── theme/
-├── tests/
-└── ci/
+├── project.godot                 ← Godot-Projektkonfiguration
+├── .godot-version                ← Engine-Pin (aktuell 4.3-stable)
+├── icon.svg                      ← Placeholder-Icon (final in Phase 2)
+├── LICENSE                       ← MIT für Code; Assets separat (siehe ATTRIBUTIONS.md)
+├── scenes/                       ← UI/3D-Szenen (main.tscn + leere Unterordner)
+├── scripts/                      ← GDScript (main.gd + leere Unterordner)
+├── shaders/                      ← GDShader (leer, P1-010)
+├── assets/                       ← Audio/Icons/Fonts/Steam (leer)
+├── theme/                        ← Godot Theme (leer, P1-011)
+├── localization/                 ← strings.csv (leer, P1-011)
+├── tests/                        ← GUT-Tests (leer, P1-003+)
+├── qa/                           ← QA-Checklisten (leer)
+├── tools/                        ← CLI-Utilities (leer)
+└── ci/                           ← Build-Scripts (leer)
 ```
+
+Leere Ordner enthalten kommentierte `.gitkeep`-Dateien die erklären, was hin kommt und in welchem Ticket.
 
 ---
 

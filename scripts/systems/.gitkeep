@@ -1,0 +1,4 @@
+# scripts/systems/ — Game-system implementations (composition over inheritance).
+# Populated by P1-005..P1-009:
+#   tick_system.gd, click_system.gd, upgrade_system.gd, stage_system.gd,
+#   prestige_system.gd, achievement_system.gd, milestone_system.gd

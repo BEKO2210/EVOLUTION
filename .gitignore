@@ -8,11 +8,16 @@
 # ---------- Godot 4.x ----------
 # Engine-generated cache. Safe to ignore; Godot rebuilds on open.
 .godot/
+# Godot 3 legacy import cache (Godot 4 uses .godot/imported/ inside .godot/).
 .import/
 
-# Per-user editor settings (workspace layout, debugger filters).
-# Project-level editor settings are intentionally tracked.
-*.import
+# IMPORTANT for Godot 4: *.import files (sibling of each asset, e.g. icon.svg.import)
+# DO contain stable UIDs and import settings that MUST be committed so the
+# project is deterministic across machines and references via uid:// resolve
+# the same on every checkout. We do NOT ignore them.
+
+# Don't ignore these explicit project-level config/resource files even if
+# patterns below accidentally hit them.
 !project.godot
 !export_presets.cfg
 !default_env.tres

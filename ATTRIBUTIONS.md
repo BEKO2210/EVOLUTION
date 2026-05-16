@@ -32,14 +32,14 @@ Abhängigkeiten und Platzhalter für geplante Integrationen.
 ## Geplante Abhängigkeiten (noch nicht im Repo)
 
 ### Godot Engine 4.x
-- **Verwendung:** **Geplant** — Ziel-Engine für die finale Implementation ab Phase 1.
+- **Verwendung:** **Aktiv** seit Phase 1, P1-001 (Repo enthält `project.godot` + `.godot-version`).
 - **Funktion:** Komplette Game-Engine (Editor, Renderer, GDScript, GDShader, Export-Pipelines).
 - **Lizenz:** MIT License
 - **Copyright:** © 2007–present Juan Linietsky, Ariel Manzur, Godot Engine contributors
 - **Quellen:**
   - Source: https://github.com/godotengine/godot
   - Lizenztext: https://github.com/godotengine/godot/blob/master/LICENSE.txt
-- **Status:** Noch nicht im Repo. Aktiviert sobald Godot-Projekt in Phase 1 angelegt wird (Ticket P1-001).
+- **Status:** Initialer Pin in `.godot-version` ist `4.3-stable`. Bei Update auf neuere stabile Version: in ADR-0001 dokumentieren + `.godot-version` + `project.godot:config/features` synchron updaten.
 
 ### GodotSteam (Plugin / GDExtension)
 - **Verwendung:** **Geplant** — Steamworks-SDK-Integration für Achievements, Cloud-Save, Steam Input. Auswahl der Distribution-Form (GDExtension vs. Modul-Build) wird durch Spike P1-012 in Phase 1 final entschieden.
