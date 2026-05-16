@@ -249,6 +249,60 @@
 
         /* Click FX layer */
         .fx-layer { position: absolute; inset:0; pointer-events:none; z-index: 3; }
+
+        /* Per-stage anatomy overlay (flagella, cilia, pseudopod hints). Lives
+           between the WebGL canvas and the FX layer. Stroke color inherits
+           via currentColor — set by .anatomy-layer's color so the same SVG
+           paths repaint when we tint the membrane per stage. */
+        .anatomy-layer {
+            position: absolute;
+            inset: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 2;
+            overflow: visible;
+            color: rgba(0, 255, 163, 0.85);
+            filter: drop-shadow(0 0 4px rgba(0, 255, 163, 0.45));
+            transition: color 0.6s ease, filter 0.6s ease;
+        }
+        .anatomy-layer .flagellum-path {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-dasharray: 4 3;
+            stroke-dashoffset: 0;
+            animation: flagellumStroke 1.4s linear infinite;
+            opacity: 0.9;
+        }
+        @keyframes flagellumStroke { to { stroke-dashoffset: -28; } }
+        .anatomy-layer .cilium {
+            stroke: currentColor;
+            stroke-width: 1.4;
+            stroke-linecap: round;
+            transform-origin: var(--ox, 0) var(--oy, 0);
+            transform-box: fill-box;
+            animation: ciliumWave var(--dur, 0.9s) ease-in-out infinite;
+            animation-delay: var(--delay, 0s);
+        }
+        @keyframes ciliumWave {
+            0%, 100% { transform: rotate(-14deg); }
+            50%      { transform: rotate(14deg); }
+        }
+        .anatomy-layer .archaea-bump,
+        .anatomy-layer .pseudopod-hint {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            opacity: 0.55;
+        }
+        .anatomy-layer .pseudopod-hint { stroke-dasharray: 3 4; opacity: 0.7; }
+        @media (prefers-reduced-motion: reduce) {
+            .anatomy-layer .flagellum-path { animation: none; stroke-dasharray: none; }
+            .anatomy-layer .cilium { animation: none; transform: rotate(0); }
+        }
+        body.qp-low .anatomy-layer { filter: none; }
         .float-text {
             position: absolute;
             color: var(--accent);
@@ -1258,6 +1312,10 @@
         <!-- BioNexus: live 3D morphogenesis scene scoped to this container.
              Replaces the SVG cell — phase machine is driven by game.stage. -->
         <canvas id="cellCanvas" aria-label="Cellular morphogenesis"></canvas>
+        <!-- Per-stage anatomy overlay: flagella, cilia, pseudopod outlines.
+             Drawn above the 3D scene but below the FX layer so click bursts
+             read clearly. Content is rewritten on stage change. -->
+        <svg class="anatomy-layer" id="anatomyLayer" viewBox="-150 -150 300 300" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
         <div class="combo" id="combo" aria-live="polite">
             <small>Combo</small>×<span id="comboMult">1.0</span>
             <div class="combo-bar"><div class="combo-bar-fill" id="comboFill"></div></div>
@@ -1430,12 +1488,16 @@
            3  DNA-Helix       double helix + cross-rungs, ~160 cells
            4  Virus           icosahedral capsid + spike glycoproteins
 
-     [ ] Iteration 2  — Stages 5–9  (Mikrobiell)
-           5  Prokaryot       small round cell, no nucleus
-           6  Bakterium       rod / Bacillus shape (capsule)
-           7  Archaea         irregular bumpy spheroid
-           8  Amöbe           pseudopod-extending blob (procedural arms)
-           9  Paramecium      oval + cilia ring
+     [✓] Iteration 2  — Stages 5–9  (Mikrobiell)
+           5  Prokaryot   tight Fibonacci sphere, small membrane cells
+           6  Bakterium   capsule body + animated whip flagellum (SVG +
+                          per-frame tail wiggle in the 3D cluster)
+           7  Archaea     bumpy spheroid (deterministic noise displacement)
+                          + dual contour rings in the SVG anatomy layer
+           8  Amöbe       core blob + 4 pseudopod arms that slowly extend
+                          and retract; dashed hint-circles in the anatomy
+           9  Paramecium  prolate ellipsoid body + 36-cilium SVG ring with
+                          staggered wave animation around the silhouette
 
      [ ] Iteration 3  — Stages 10–12 (Zellulär)
            10 Pflanzenzelle   hexagonal tile arrangement
@@ -1517,23 +1579,29 @@ function getStageShape(stage) {
     const s = Math.max(1, Math.min(30, stage));
 
     // -- Iteration 1: hand-tuned shapes for the subzellulär phase --------
-    if (s === 1) return { id:'proto',  count:  1, morph:0,  swim:0, label:'Solo',   shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero' };
-    if (s === 2) return { id:'rna',    count: 90, morph:1,  swim:0, label:'Strang', shape: shapeRNAStrand,    naturalRadius: 9.0,  cellScaleHint:'thin' };
-    if (s === 3) return { id:'dna',    count:170, morph:1,  swim:0, label:'Helix',  shape: shapeDNAHelix,     naturalRadius: 11.5, cellScaleHint:'thin' };
-    if (s === 4) return { id:'virus',  count: 90, morph:1,  swim:0, label:'Kapsid', shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin' };
+    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero', anatomy:'none' };
+    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 9.0,  cellScaleHint:'thin', anatomy:'none' };
+    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 11.5, cellScaleHint:'thin', anatomy:'none' };
+    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin', anatomy:'none' };
 
-    // -- Fallback: existing cluster→organism progression for stages 5–30 --
+    // -- Iteration 2: mikrobiell phase, hand-tuned per stage --------------
+    if (s === 5) return { id:'prokaryot', count: 70, morph:1, swim:0, label:'Prokaryot',  shape: shapeProkaryot, naturalRadius: 3.4, cellScaleHint:'micro', anatomy:'none' };
+    if (s === 6) return { id:'bakterium', count:130, morph:1, swim:0, label:'Bakterium',  shape: shapeBakterium, animate: animateBakteriumTail, naturalRadius: 6.5, cellScaleHint:'micro', anatomy:'flagellum' };
+    if (s === 7) return { id:'archaea',   count:150, morph:1, swim:0, label:'Archaea',    shape: shapeArchaea,   naturalRadius: 4.6, cellScaleHint:'micro', anatomy:'bumps' };
+    if (s === 8) return { id:'amoebe',    count:220, morph:1, swim:0, label:'Amöbe',      shape: shapeAmoeba,    animate: animateAmoebaPseudopods, naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pseudopods' };
+    if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia' };
+
+    // -- Fallback: existing cluster→organism progression for stages 10–30 --
     const t = (s - 1) / 29;
     const budget = Math.max(64, Math.floor(MAX_INSTANCES * qualityScale));
     const count = Math.max(1, Math.round(Math.pow(t, 1.6) * budget + (1 - t) * 1));
     const morph = THREE.MathUtils.clamp((s - 16) / 7, 0, 1);
     const swim  = THREE.MathUtils.clamp((s - 22) / 8, 0, 1);
-    let label = 'Mikrobiell';
-    if (s >= 10 && s < 13) label = 'Zellulär';
-    else if (s >= 13 && s < 19) label = 'Mehrzeller';
+    let label = 'Zellulär';
+    if (s >= 13 && s < 19) label = 'Mehrzeller';
     else if (s >= 19 && s < 23) label = 'Wirbeltier';
     else if (s >= 23) label = 'Transzendent';
-    return { id:'organism:'+s, count, morph, swim, label, shape: shapeRandomLifeform, naturalRadius: null, cellScaleHint:'auto' };
+    return { id:'organism:'+s, count, morph, swim, label, shape: shapeRandomLifeform, naturalRadius: null, cellScaleHint:'auto', anatomy:'none' };
 }
 
 // Back-compat shim: the rest of the module still calls stageToTargets().
@@ -1627,6 +1695,204 @@ function shapeVirusCapsid(arr, count) {
         arr[k*3 + 2] = Math.sin(th) * cr * spikeR;
     }
 }
+// ===== Iteration 2 shape generators (mikrobiell, stages 5–9) ==============
+
+function shapeProkaryot(arr, count) {
+    // Small densely-packed cocci (round bacterium). Uniform Fibonacci sphere
+    // — looks distinctly "spherical" vs the loose cluster of the proto stage.
+    const r = 2.8;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < count; i++) {
+        const y = count > 1 ? 1 - (i / (count - 1)) * 2 : 0;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * i;
+        arr[i*3]     = Math.cos(th) * cr * r;
+        arr[i*3 + 1] = y * r;
+        arr[i*3 + 2] = Math.sin(th) * cr * r;
+    }
+}
+
+function shapeBakterium(arr, count) {
+    // Bacillus capsule: cylindrical body with hemispherical caps. Last ~25%
+    // of instances form the flagellum tail (procedural per-frame animation).
+    const tailFrac = 0.22;
+    const tailCount = Math.max(8, Math.floor(count * tailFrac));
+    const bodyCount = count - tailCount;
+    const bodyLen = 7.5;
+    const bodyR = 1.9;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < bodyCount; i++) {
+        // Map index to a position along the capsule's surface.
+        const u = bodyCount > 1 ? i / (bodyCount - 1) : 0.5;
+        const ang = phi * i;
+        // 'belt' = cylindrical zone, 'caps' = hemispherical zones
+        let x, r;
+        if (u < 0.18) {
+            // -X cap (hemisphere)
+            const v = u / 0.18;          // 0..1
+            const theta = v * Math.PI/2; // 0..π/2
+            x = -bodyLen/2 - Math.cos(theta) * bodyR + bodyR; // shift to align
+            r = Math.sin(theta) * bodyR;
+        } else if (u > 0.82) {
+            const v = (u - 0.82) / 0.18; // 0..1
+            const theta = v * Math.PI/2;
+            x = bodyLen/2 + Math.sin(theta) * bodyR - 0; // tail-end cap; flagellum attaches here
+            r = Math.cos(theta) * bodyR;
+        } else {
+            const v = (u - 0.18) / 0.64; // 0..1 cylinder
+            x = -bodyLen/2 + bodyR + v * (bodyLen - 0);
+            r = bodyR;
+        }
+        arr[i*3]     = x;
+        arr[i*3 + 1] = Math.sin(ang) * r;
+        arr[i*3 + 2] = Math.cos(ang) * r;
+    }
+    // Tail seed positions — animateBakteriumTail rewrites these each frame.
+    const tailStartX = bodyLen/2 + bodyR;
+    for (let i = 0; i < tailCount; i++) {
+        const t = i / Math.max(1, tailCount - 1);
+        arr[(bodyCount + i)*3]     = tailStartX + t * 8;
+        arr[(bodyCount + i)*3 + 1] = 0;
+        arr[(bodyCount + i)*3 + 2] = 0;
+    }
+    // Stash counts on the array via expando properties so the animator knows
+    // where the tail starts without recomputing.
+    arr._tailStart = bodyCount;
+    arr._tailLen = tailCount;
+    arr._tailStartX = tailStartX;
+}
+
+function animateBakteriumTail(arr, count, time) {
+    const start = arr._tailStart || 0;
+    const len = arr._tailLen || 0;
+    const x0 = arr._tailStartX || 0;
+    // Sine wave traveling along the tail; amplitude grows toward the tip.
+    for (let i = 0; i < len; i++) {
+        const t = i / Math.max(1, len - 1);
+        const x = x0 + t * 8.0;
+        const phase = t * 6.5 - time * 6.0;
+        const amp = 0.3 + t * 1.4;
+        arr[(start + i)*3]     = x;
+        arr[(start + i)*3 + 1] = Math.sin(phase) * amp;
+        arr[(start + i)*3 + 2] = Math.cos(phase * 0.5) * amp * 0.25;
+    }
+}
+
+function shapeArchaea(arr, count) {
+    // Irregular bumpy spheroid. We start with a Fibonacci sphere and push
+    // each point along its normal by a low-frequency noise — gives an
+    // unmistakably alien, lumpy silhouette compared to the smooth prokaryot.
+    const r = 3.4;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < count; i++) {
+        const y = count > 1 ? 1 - (i / (count - 1)) * 2 : 0;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * i;
+        // Cheap deterministic noise from index — no Math.random so it's
+        // stable across re-renders.
+        const n = Math.sin(i * 12.9898) * 43758.5453;
+        const bump = 1.0 + ((n - Math.floor(n)) - 0.5) * 0.7;
+        const nx = Math.cos(th) * cr;
+        const ny = y;
+        const nz = Math.sin(th) * cr;
+        arr[i*3]     = nx * r * bump;
+        arr[i*3 + 1] = ny * r * bump;
+        arr[i*3 + 2] = nz * r * bump;
+    }
+}
+
+function shapeAmoeba(arr, count) {
+    // Core blob + 4 procedural pseudopod arms. Arms are stored in the second
+    // half of the buffer so animateAmoebaPseudopods can wiggle them.
+    const coreFrac = 0.6;
+    const coreCount = Math.floor(count * coreFrac);
+    const armCount = count - coreCount;
+    const ARMS = 4;
+    const cellsPerArm = Math.floor(armCount / ARMS);
+    const armRemainder = armCount - cellsPerArm * ARMS;
+    const r = 3.2;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < coreCount; i++) {
+        const y = coreCount > 1 ? 1 - (i / (coreCount - 1)) * 2 : 0;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * i;
+        // Slight noise so the blob isn't a perfect sphere.
+        const n = (Math.sin(i * 7.13) * 0.5 + 0.5) * 0.25 + 0.95;
+        arr[i*3]     = Math.cos(th) * cr * r * n;
+        arr[i*3 + 1] = y * r * n;
+        arr[i*3 + 2] = Math.sin(th) * cr * r * n;
+    }
+    // Arm seed positions — animator rewrites per frame.
+    let writeIdx = coreCount;
+    for (let a = 0; a < ARMS; a++) {
+        const armBaseAng = (a / ARMS) * Math.PI * 2;
+        const n = cellsPerArm + (a < armRemainder ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+            const t = (k + 1) / n;
+            const reach = r + t * 4.0;
+            arr[writeIdx*3]     = Math.cos(armBaseAng) * reach;
+            arr[writeIdx*3 + 1] = 0;
+            arr[writeIdx*3 + 2] = Math.sin(armBaseAng) * reach;
+            writeIdx++;
+        }
+    }
+    arr._armStart = coreCount;
+    arr._armCount = armCount;
+    arr._arms = ARMS;
+    arr._cellsPerArm = cellsPerArm;
+    arr._armRemainder = armRemainder;
+    arr._coreR = r;
+}
+
+function animateAmoebaPseudopods(arr, count, time) {
+    const start = arr._armStart || 0;
+    const ARMS = arr._arms || 4;
+    const cellsPerArm = arr._cellsPerArm || 0;
+    const remainder = arr._armRemainder || 0;
+    const r = arr._coreR || 3.2;
+    let idx = start;
+    for (let a = 0; a < ARMS; a++) {
+        // Each arm has its own phase + a slow base-angle wobble so the
+        // creature looks like it's choosing direction.
+        const baseAng = (a / ARMS) * Math.PI * 2 + Math.sin(time * 0.4 + a) * 0.25;
+        // Per-arm "extension" pulse: slowly extends, then retracts.
+        const extend = 0.55 + 0.45 * Math.sin(time * 0.6 + a * 1.7);
+        const n = cellsPerArm + (a < remainder ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+            const t = (k + 1) / n;
+            // Each cell along the arm has a slight lateral wave.
+            const lateral = Math.sin(time * 1.5 + a * 2.0 + t * 4.0) * 0.4 * t;
+            const reach = r + t * (3.5 + extend * 2.5);
+            const dirX = Math.cos(baseAng);
+            const dirZ = Math.sin(baseAng);
+            const perpX = -dirZ;
+            const perpZ = dirX;
+            arr[idx*3]     = dirX * reach + perpX * lateral;
+            arr[idx*3 + 1] = Math.sin(time * 1.2 + a + t * 2) * 0.5 * t;
+            arr[idx*3 + 2] = dirZ * reach + perpZ * lateral;
+            idx++;
+        }
+    }
+}
+
+function shapeParamecium(arr, count) {
+    // Prolate spheroid — elongated oval body. Cilia are drawn as SVG
+    // overlay (see anatomy-layer); the 3D scene only carries the body.
+    const lenX = 9.5;
+    const radY = 3.0;
+    const radZ = 3.0;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < count; i++) {
+        // Sample on a unit sphere then scale to ellipsoid.
+        const y = count > 1 ? 1 - (i / (count - 1)) * 2 : 0;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * i;
+        arr[i*3]     = Math.cos(th) * cr * lenX;
+        arr[i*3 + 1] = y * radY;
+        arr[i*3 + 2] = Math.sin(th) * cr * radZ;
+    }
+}
+
 function shapeRandomLifeform(arr, count) {
     // The original "stylised nematode / bärtierchen" used by the cluster→
     // organism morph for stages without a dedicated shape yet.
@@ -1871,6 +2137,85 @@ function applyShape(spec) {
     cellGeo.attributes.targetPos.needsUpdate = true;
 }
 
+// ===== Anatomy SVG overlay ===============================================
+// Premium hand-illustrated detail on top of the 3D scene. The 3D cluster
+// carries the body; this SVG carries delicate features (flagellum tail,
+// cilia ring around the silhouette, archaea bump rings, pseudopod hints).
+// Generated lazily on stage change, animated entirely in CSS (see the
+// .anatomy-layer styles above).
+let currentAnatomy = null;
+function applyAnatomy(spec) {
+    const want = (spec && spec.anatomy) || 'none';
+    if (currentAnatomy === want) return;
+    currentAnatomy = want;
+    const svg = document.getElementById('anatomyLayer');
+    if (!svg) return;
+    let markup = '';
+    if (want === 'flagellum') {
+        // A long whip starting at the right edge of the bacterium body.
+        // The dash animation gives the impression of motion along the path
+        // (cheaper than morphing `d` per frame and looks more elegant).
+        markup = '<path class="flagellum-path" d="M 60 0 C 78 -22, 96 22, 112 -10 C 124 -30, 134 22, 140 -4"/>';
+    } else if (want === 'cilia') {
+        // Ring of ~36 cilia around the paramecium silhouette (prolate
+        // ellipse). Each cilium gets a staggered animation-delay so they
+        // wave in a continuous coordinated sweep.
+        const N = 36;
+        const rx = 100, ry = 38; // matches shape's body roughly when viewBox is 300x300
+        const len = 14;
+        const parts = [];
+        for (let i = 0; i < N; i++) {
+            const a = (i / N) * Math.PI * 2;
+            const x = Math.cos(a) * rx;
+            const y = Math.sin(a) * ry;
+            // Outward normal direction (ellipse gradient ~ (x/rx, y/ry)).
+            const nx = (x / rx);
+            const ny = (y / ry);
+            const nL = Math.sqrt(nx*nx + ny*ny) || 1;
+            const dx = (nx / nL) * len;
+            const dy = (ny / nL) * len;
+            const delay = ((i / N) * 1.2).toFixed(2) + 's';
+            parts.push(
+                `<line class="cilium" style="--ox:${x.toFixed(1)};--oy:${y.toFixed(1)};--delay:${delay};--dur:0.9s" `
+              + `x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" `
+              + `x2="${(x+dx).toFixed(1)}" y2="${(y+dy).toFixed(1)}"/>`
+            );
+        }
+        markup = parts.join('');
+    } else if (want === 'bumps') {
+        // Two soft contour rings + scattered tick marks to suggest a
+        // textured archaeal surface without competing with the 3D scene.
+        markup = ''
+          + '<ellipse class="archaea-bump" cx="0" cy="0" rx="58" ry="58" opacity="0.35"/>'
+          + '<ellipse class="archaea-bump" cx="0" cy="0" rx="44" ry="46" opacity="0.5" transform="rotate(28)"/>';
+        const N = 14;
+        const parts = [markup];
+        for (let i = 0; i < N; i++) {
+            const a = (i / N) * Math.PI * 2;
+            const r1 = 52;
+            const r2 = 58;
+            const x1 = Math.cos(a) * r1, y1 = Math.sin(a) * r1;
+            const x2 = Math.cos(a) * r2, y2 = Math.sin(a) * r2;
+            parts.push(`<line class="archaea-bump" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" opacity="0.45"/>`);
+        }
+        markup = parts.join('');
+    } else if (want === 'pseudopods') {
+        // 4 dashed hint-circles where the pseudopods like to extend. They
+        // sit slightly outside the core, giving the SVG layer a sense of
+        // "potential motion" — the actual arm cells are 3D.
+        const parts = [];
+        const ARMS = 4;
+        for (let a = 0; a < ARMS; a++) {
+            const ang = (a / ARMS) * Math.PI * 2 + Math.PI / 4;
+            const cx = Math.cos(ang) * 70;
+            const cy = Math.sin(ang) * 70;
+            parts.push(`<circle class="pseudopod-hint" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="10"/>`);
+        }
+        markup = parts.join('');
+    }
+    svg.innerHTML = markup;
+}
+
 // Cluster layout — Fibonacci sphere. Per-instance scale interpolates from
 // "single hero cell" at low count to "tiny cells in a packed sphere" at high
 // count, so the player can always see a recognisable shape at any stage.
@@ -1891,6 +2236,11 @@ function layoutCluster(count) {
         cellScale = 6.5;
     } else if (hint === 'thin') {
         cellScale = 0.65;
+    } else if (hint === 'micro') {
+        // Mid-density microbial cluster: enough body to read at a glance,
+        // small enough that ~200 cells still feel like discrete organelles
+        // rather than one blob.
+        cellScale = 0.95;
     } else {
         const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
         cellScale = 5.0 * (1 - sLerp) + 1.0 * sLerp;
@@ -2001,6 +2351,8 @@ const BioNexus = {
         targets = stageToTargets(stage);
         // Rewrite the per-instance target positions for the new shape.
         applyShape(targets);
+        // Swap the anatomy overlay (flagellum / cilia / etc) to match.
+        applyAnatomy(targets);
         // Re-cluster animation: on a stage transition the cells should be
         // visibly seen "respawning" into the new shape. We drop the morph
         // uniform to 0 and let update() lerp it back up to spec.morph. On
@@ -2062,6 +2414,15 @@ const BioNexus = {
             layoutCluster(displayedCount);
             const bioEl = document.getElementById('bioCount');
             if (bioEl) bioEl.textContent = displayedCount.toLocaleString('de-DE');
+        }
+
+        // Per-stage live animation (flagellum tail wiggle, pseudopod arms
+        // extending/retracting). Runs only for stages that publish an
+        // animate() callback in their spec — overhead is bounded to the
+        // tail/arm slice of the buffer, not the whole instance pool.
+        if (targets && typeof targets.animate === 'function') {
+            targets.animate(targetPositions, targets.count, time);
+            cellGeo.attributes.targetPos.needsUpdate = true;
         }
 
         // Smoothly chase morph/swim (in case stage changed between frames).
@@ -3463,11 +3824,19 @@ function toggleHaptic() { game.haptic = !game.haptic; document.getElementById('h
 
 // =============================== SAVE/LOAD ==================================
 let saveTimeout = null;
+// Hard-reset guard. When this flag is set, every save path becomes a no-op
+// so that the unload listeners (beforeunload/pagehide) don't immediately
+// re-write the localStorage entry we just removed. This was the actual cause
+// of "Reset funktioniert nicht": the reload fired saveGame() one last time
+// and restored the cleared state.
+let saveDisabled = false;
 function saveSoon() {
+    if (saveDisabled) return;
     if (saveTimeout) return;
     saveTimeout = setTimeout(() => { saveTimeout = null; saveGame(); }, 1500);
 }
 function saveGame() {
+    if (saveDisabled) return;
     const now = Date.now();
     game.lastTick = now;
     const data = {
@@ -3515,10 +3884,22 @@ function loadGame() {
 }
 function closeOffline() { document.getElementById('offlinePopup').classList.add('hidden'); }
 function hardReset() {
-    if (!confirm('Wirklich ALLES löschen? Kein Backup. Permanent.')) return;
+    if (!confirm('Wirklich ALLES löschen? Kein Backup. Permanent.\n\nTipp: vorher per „Export" sichern.')) return;
     if (!confirm('SICHER? Letzte Chance.')) return;
-    localStorage.removeItem(SAVE_KEY);
-    location.reload();
+    // Disable all save paths BEFORE removing the entry — otherwise the
+    // beforeunload/pagehide listeners or any pending saveSoon timer will
+    // re-write the cleared save during the reload.
+    saveDisabled = true;
+    if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+    // Stop the auto-clicker so it doesn't fire one last clickCell() that
+    // accidentally writes to game state after the wipe.
+    if (autoClickerInt) { clearInterval(autoClickerInt); autoClickerInt = null; }
+    try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+    try { localStorage.removeItem(SAVE_KEY + ':quality'); } catch(e){}
+    // Force a clean reload — the bfcache copy would still hold our in-memory
+    // game state. location.reload() with no argument is the modern equivalent
+    // of the deprecated reload(true).
+    setTimeout(() => location.reload(), 30);
 }
 
 // =============================== MAIN LOOP ==================================
