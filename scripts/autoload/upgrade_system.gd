@@ -150,17 +150,24 @@ func buy_max(upgrade_id: String) -> int:
 	return 0
 
 ## Recompute GameState.dps and GameState.click_power from owned counts.
-## Cheap — single pass over both upgrade tables (60 items in v1).
-## Pure function w.r.t. GameState.upgrade_counts and GameState.prestige_multiplier;
-## writes only dps & click_power.
+## Cheap — single pass over both upgrade tables (60 items in v1) plus an
+## O(unlocked_achievements) sum for the achievement reward bundle.
+## Pure function w.r.t. GameState.upgrade_counts, prestige_multiplier, and
+## achievements_unlocked; writes only dps & click_power.
 ##
-## Phase-1 formula (research / achievement / mutation / stage-bonus
-## multipliers come in P1-009):
-##   dps         = (sum auto:  dps_base   * count * milestone_mult(count)) * prestige_mult
-##   click_power = (1 + sum click: click_base * count * milestone_mult(count)) * prestige_mult
+## Formula (Phase 1, post-P1-009):
+##   dps         = (sum auto:  dps_base   * count * milestone_mult(count))
+##                 * prestige_mult * dps_mult * all_mult
+##   click_power = (1 + sum click: click_base * count * milestone_mult(count))
+##                 * prestige_mult * click_mult * all_mult
 ##
-## prestige_multiplier = 1.10^prestige_points (compounding; managed by
-## PrestigeSystem, never written from here).
+## Multiplier sources:
+##   prestige_mult  : 1.10^prestige_points  (PrestigeSystem)
+##   dps_mult       : product of achievement.reward.dps_multiplier (AchievementSystem)
+##   click_mult     : product of achievement.reward.click_multiplier (AchievementSystem)
+##   all_mult       : product of achievement.reward.all_multiplier (AchievementSystem)
+##
+## Research / stage-bonus / mutation multipliers land in their own tickets.
 func recalc_stats() -> void:
 	if not DataLoader.is_loaded:
 		return
@@ -178,11 +185,18 @@ func recalc_stats() -> void:
 		if count == 0:
 			continue
 		click_total += float(u["click_power_base"]) * float(count) * get_milestone_multiplier(count)
-	# Apply prestige multiplier last; defensively clamp to >= 1.0 so a
-	# corrupted save with multiplier=0 doesn't zero out the game.
+	# Apply prestige multiplier; defensively clamp to >= 1.0 so a corrupted
+	# save with multiplier=0 doesn't zero out the game.
 	var prestige: float = max(1.0, GameState.prestige_multiplier)
-	GameState.dps = dps_total * prestige
-	GameState.click_power = click_total * prestige
+	# Achievement reward bundle (1.0 / 1.0 / 1.0 / 0.0 / ... when none unlocked).
+	# AchievementSystem may not exist yet in early autoload init — guard.
+	var ach_bundle: Dictionary = {
+		"dps_mult": 1.0, "click_mult": 1.0, "all_mult": 1.0,
+	}
+	if Engine.has_singleton("AchievementSystem") or get_node_or_null("/root/AchievementSystem") != null:
+		ach_bundle = AchievementSystem.get_reward_multipliers()
+	GameState.dps = dps_total * prestige * float(ach_bundle["dps_mult"]) * float(ach_bundle["all_mult"])
+	GameState.click_power = click_total * prestige * float(ach_bundle["click_mult"]) * float(ach_bundle["all_mult"])
 	stats_recalculated.emit(GameState.dps, GameState.click_power)
 
 # ----------------------------------------------------------------------------

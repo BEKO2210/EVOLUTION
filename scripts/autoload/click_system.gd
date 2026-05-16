@@ -127,8 +127,13 @@ func _get_crit_chance() -> float:
 	var c: Dictionary = _balance_crit()
 	var base: float = float(c.get("base_chance", DEFAULT_CRIT_CHANCE))
 	var cap: float = float(c.get("max_chance", DEFAULT_CRIT_CHANCE_CAP))
-	# Phase 1: only the base. Research / achievement bonuses land in P1-009.
-	return min(cap, base)
+	# Achievement bonus (P1-009). AchievementSystem may not exist yet during
+	# early autoload init — guard.
+	var ach_add: float = 0.0
+	if get_node_or_null("/root/AchievementSystem") != null:
+		ach_add = float(AchievementSystem.get_reward_multipliers().get("crit_chance_add", 0.0))
+	# Research bonuses come in their own ticket.
+	return min(cap, base + ach_add)
 
 func _get_crit_multiplier() -> float:
 	return float(_balance_crit().get("base_multiplier", DEFAULT_CRIT_MULTIPLIER))

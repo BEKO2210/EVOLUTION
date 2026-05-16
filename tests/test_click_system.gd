@@ -150,6 +150,7 @@ func _reset_state() -> void:
 	GameState.total_clicks = 0
 	GameState.total_crits = 0
 	GameState.upgrade_counts = {}
+	GameState.achievements_unlocked = {}
 	ClickSystem.reset_combo()
 
 func _assert(cond: bool, msg: String) -> void:

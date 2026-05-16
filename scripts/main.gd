@@ -15,9 +15,9 @@ extends Node
 ##   P1-006 — ClickSystem + UpgradeSystem (DPS accumulation + milestone math)
 ##   P1-007 — StageSystem (threshold progression, stage_changed signal)
 ##   P1-008 — PrestigeSystem (lifetime-DNA threshold, EP formula, compounding multiplier)
+##   P1-009 — AchievementSystem (declarative conditions, reward multipliers, persistence)
 ##
 ## Still to come:
-##   P1-009 — AchievementSystem
 ##   P1-010 — BioNexus shader port (GLSL -> GDShader)
 ##   P1-011 — Greybox UI (tabs, panels, upgrade cards) + audio bus layout
 ##   P1-012 — GodotSteam spike
@@ -47,6 +47,7 @@ func _ready() -> void:
 	report.append(_check_click_and_upgrade())
 	report.append(_check_stage_system())
 	report.append(_check_prestige_system())
+	report.append(_check_achievement_system())
 
 	var summary: String = "\n".join(report)
 	print("[Evolution] Autoload smoke-test:\n%s" % summary)
@@ -141,19 +142,22 @@ func _check_click_and_upgrade() -> String:
 	# We snapshot every potentially-touched field and restore at the end.
 	# prestige_points/multiplier are not modified here but are included
 	# defensively so a hypothetical future addition can't silently corrupt
-	# meta-progression.
+	# meta-progression. Same for achievements_unlocked (P1-009+) — the
+	# smoke run drives signals that AchievementSystem subscribes to, so a
+	# borderline-case achievement could theoretically unlock here.
 	var snapshot: Dictionary = {
-		"dna":                  GameState.dna,
-		"total_dna":            GameState.total_dna,
-		"lifetime_dna":         GameState.lifetime_dna,
-		"click_power":          GameState.click_power,
-		"dps":                  GameState.dps,
-		"stage":                GameState.stage,
-		"prestige_points":      GameState.prestige_points,
-		"prestige_multiplier":  GameState.prestige_multiplier,
-		"total_clicks":         GameState.total_clicks,
-		"total_crits":          GameState.total_crits,
-		"upgrade_counts":       GameState.upgrade_counts.duplicate(true),
+		"dna":                    GameState.dna,
+		"total_dna":              GameState.total_dna,
+		"lifetime_dna":           GameState.lifetime_dna,
+		"click_power":            GameState.click_power,
+		"dps":                    GameState.dps,
+		"stage":                  GameState.stage,
+		"prestige_points":        GameState.prestige_points,
+		"prestige_multiplier":    GameState.prestige_multiplier,
+		"total_clicks":           GameState.total_clicks,
+		"total_crits":            GameState.total_crits,
+		"upgrade_counts":         GameState.upgrade_counts.duplicate(true),
+		"achievements_unlocked":  GameState.achievements_unlocked.duplicate(true),
 	}
 	# Drive the smoke check from a known click_power baseline so result text
 	# is predictable; snapshot restores it after.
@@ -168,17 +172,18 @@ func _check_click_and_upgrade() -> String:
 	var bought: bool = UpgradeSystem.buy("auto_001")
 	var dps_after: float = GameState.dps
 	# --- Restore exactly what we snapshotted ---
-	GameState.dna                 = snapshot["dna"]
-	GameState.total_dna           = snapshot["total_dna"]
-	GameState.lifetime_dna        = snapshot["lifetime_dna"]
-	GameState.click_power         = snapshot["click_power"]
-	GameState.dps                 = snapshot["dps"]
-	GameState.stage               = snapshot["stage"]
-	GameState.prestige_points     = snapshot["prestige_points"]
-	GameState.prestige_multiplier = snapshot["prestige_multiplier"]
-	GameState.total_clicks        = snapshot["total_clicks"]
-	GameState.total_crits         = snapshot["total_crits"]
-	GameState.upgrade_counts      = snapshot["upgrade_counts"]
+	GameState.dna                   = snapshot["dna"]
+	GameState.total_dna             = snapshot["total_dna"]
+	GameState.lifetime_dna          = snapshot["lifetime_dna"]
+	GameState.click_power           = snapshot["click_power"]
+	GameState.dps                   = snapshot["dps"]
+	GameState.stage                 = snapshot["stage"]
+	GameState.prestige_points       = snapshot["prestige_points"]
+	GameState.prestige_multiplier   = snapshot["prestige_multiplier"]
+	GameState.total_clicks          = snapshot["total_clicks"]
+	GameState.total_crits           = snapshot["total_crits"]
+	GameState.upgrade_counts        = snapshot["upgrade_counts"]
+	GameState.achievements_unlocked = snapshot["achievements_unlocked"]
 	ClickSystem.reset_combo()
 	UpgradeSystem.recalc_stats()  # rebuild dps/click_power from restored counts
 	if clicks_added != 3:
@@ -217,3 +222,17 @@ func _check_prestige_system() -> String:
 	return "PrestigeSystem: OK — current x%.2f, %d EP available" % [
 		cur_mult, PrestigeSystem.get_evolution_points_available()
 	]
+
+func _check_achievement_system() -> String:
+	# P1-009: pure queries only. Verify the table size and the reward
+	# aggregation are wired without changing achievement state.
+	var total: int = AchievementSystem.get_total_count()
+	if total != 27:
+		return "AchievementSystem: FAIL (expected 27 achievements, got %d)" % total
+	var unlocked: int = AchievementSystem.get_unlocked_count()
+	# get_reward_multipliers should always return a Dictionary with the
+	# expected identity values when nothing is unlocked.
+	var bundle: Dictionary = AchievementSystem.get_reward_multipliers()
+	if not bundle.has("dps_mult") or not bundle.has("click_mult") or not bundle.has("all_mult"):
+		return "AchievementSystem: FAIL (reward bundle missing required keys)"
+	return "AchievementSystem: OK — %d/%d unlocked, reward bundle wired" % [unlocked, total]
