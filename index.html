@@ -1414,7 +1414,66 @@
 
 <div class="toast-wrap" id="toastWrap"></div>
 
-<!-- Three.js via import map (no build step). -->
+<!-- =====================================================================
+     HTML-PROTOTYPE SHAPE ROADMAP (per-stage cell visuals)
+     ─────────────────────────────────────────────────────────────────────
+     Scope: ONLY index.html. The Godot project (scripts/, scenes/, shaders/,
+     data/) is owned by a parallel workstream — do not touch from here.
+
+     Goal: every stage's visual should match what the stage actually IS.
+           "DNA-Helix" should look like a double helix, not a generic
+           cluster. Big project, broken into iterations:
+
+     [✓] Iteration 1  — Stages 1–4  (Subzellulär)
+           1  Proto-Molekül   single hero blob (cluster, 1 cell, big scale)
+           2  RNA-Strang      single-strand helix curve, ~90 cells
+           3  DNA-Helix       double helix + cross-rungs, ~160 cells
+           4  Virus           icosahedral capsid + spike glycoproteins
+
+     [ ] Iteration 2  — Stages 5–9  (Mikrobiell)
+           5  Prokaryot       small round cell, no nucleus
+           6  Bakterium       rod / Bacillus shape (capsule)
+           7  Archaea         irregular bumpy spheroid
+           8  Amöbe           pseudopod-extending blob (procedural arms)
+           9  Paramecium      oval + cilia ring
+
+     [ ] Iteration 3  — Stages 10–12 (Zellulär)
+           10 Pflanzenzelle   hexagonal tile arrangement
+           11 Schwamm         porous spheroid (holes)
+           12 Hydra           tubular body + radial tentacles
+
+     [ ] Iteration 4  — Stages 13–18 (Mehrzeller body plans)
+           13 Plattwurm       flat elongated ribbon
+           14 Insekt          head/thorax/abdomen segments
+           15 Fisch           streamlined body + fins
+           16 Amphibie        amphibian quadruped silhouette
+           17 Reptil          long body + tail + legs
+           18 Vogel           winged silhouette
+
+     [ ] Iteration 5  — Stages 19–22 (Wirbeltier)
+           19 Säugetier   20 Primat   21 Hominid   22 Mensch
+           Bipedal/quadruped silhouettes, increasing torso fidelity.
+
+     [ ] Iteration 6  — Stages 23–30 (Transzendenz)
+           23 Übermensch         human + aura halo
+           24 Schwarm-Intelligenz  many connected nodes (network graph)
+           25 KI-Singularität    geometric / fractal pattern
+           26 Stern-Bewusstsein  star / sun corona
+           27 Galaktischer Geist spiral galaxy
+           28 Universum-Knoten   nested rings / tesseract
+           29 Multiversum        sphere-of-spheres
+           30 Transzendenz       cosmic everything, all FX on
+
+     Implementation pattern (locked in by Iteration 1):
+       - Each stage maps to a "shape spec" via getStageShape(stage)
+       - spec.shape(targetPositions, count) writes per-instance target xyz
+       - targetPositions buffer is marked dirty on shape change
+       - Cluster layout (sphere) remains the spawn-in state; shader morphs
+         from cluster → targetPos based on spec.morph (1 for custom shapes)
+       - displayedCount lerps smoothly between stages so re-stages animate
+       - Camera dolly adapts via currentClusterRadius — extend per-shape
+         when a shape's natural size differs (e.g. DNA helix is taller)
+     ===================================================================== -->
 <script type="importmap">
 {
     "imports": {
@@ -1449,26 +1508,147 @@ const PALETTE = {
     glow:     new THREE.Color('#4fd1ff'), // game accent-2 cyan
 };
 
-// Stage → simulation parameters. The 30-stage progression in the main game maps
-// onto five visible phases: SOLO (1 cell, slow pulse), DIVIDING (mitosis ramp),
-// CLUSTER (sphere), MORPHOGENESIS (sphere → organism), LIFE (autonomous swim).
-function stageToTargets(stage) {
+// Stage → shape spec. Returns the per-stage configuration used by the
+// renderer: how many instances to draw, what shape they should form, how
+// far to morph from the spawn cluster toward that shape, how fast to swim,
+// and a human-readable phase label for the bio-hud pill. See the
+// HTML-PROTOTYPE SHAPE ROADMAP comment above for iteration scope.
+function getStageShape(stage) {
     const s = Math.max(1, Math.min(30, stage));
-    // smooth count curve: 1 cell at stage 1, ~MAX at stage 30
+
+    // -- Iteration 1: hand-tuned shapes for the subzellulär phase --------
+    if (s === 1) return { id:'proto',  count:  1, morph:0,  swim:0, label:'Solo',   shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero' };
+    if (s === 2) return { id:'rna',    count: 90, morph:1,  swim:0, label:'Strang', shape: shapeRNAStrand,    naturalRadius: 9.0,  cellScaleHint:'thin' };
+    if (s === 3) return { id:'dna',    count:170, morph:1,  swim:0, label:'Helix',  shape: shapeDNAHelix,     naturalRadius: 11.5, cellScaleHint:'thin' };
+    if (s === 4) return { id:'virus',  count: 90, morph:1,  swim:0, label:'Kapsid', shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin' };
+
+    // -- Fallback: existing cluster→organism progression for stages 5–30 --
     const t = (s - 1) / 29;
     const budget = Math.max(64, Math.floor(MAX_INSTANCES * qualityScale));
     const count = Math.max(1, Math.round(Math.pow(t, 1.6) * budget + (1 - t) * 1));
-    // morph value: SVG-like cluster until stage 16, then morph to organism by stage 23.
     const morph = THREE.MathUtils.clamp((s - 16) / 7, 0, 1);
-    // swim speed ramps in after morphogenesis completes.
-    const swim = THREE.MathUtils.clamp((s - 22) / 8, 0, 1);
-    // phase label for the bio-hud pill
-    let label = 'Solo';
-    if (s >= 2 && s < 8) label = 'Mitose';
-    else if (s >= 8 && s < 16) label = 'Cluster';
-    else if (s >= 16 && s < 23) label = 'Morphogenese';
-    else if (s >= 23) label = 'Lebewesen';
-    return { count, morph, swim, label };
+    const swim  = THREE.MathUtils.clamp((s - 22) / 8, 0, 1);
+    let label = 'Mikrobiell';
+    if (s >= 10 && s < 13) label = 'Zellulär';
+    else if (s >= 13 && s < 19) label = 'Mehrzeller';
+    else if (s >= 19 && s < 23) label = 'Wirbeltier';
+    else if (s >= 23) label = 'Transzendent';
+    return { id:'organism:'+s, count, morph, swim, label, shape: shapeRandomLifeform, naturalRadius: null, cellScaleHint:'auto' };
+}
+
+// Back-compat shim: the rest of the module still calls stageToTargets().
+function stageToTargets(stage) { return getStageShape(stage); }
+
+// ===== Iteration 1 shape generators ========================================
+// Each writes spec.count target xyz triples into the shared targetPositions
+// buffer. They run on stage transitions only — cheap.
+
+function shapeProtoMolecule(arr, count) {
+    // Single hero blob at origin. The cluster layout (single big cell) does
+    // the visual work; targetPos is just origin so morph has no effect.
+    for (let i = 0; i < count; i++) {
+        arr[i*3] = 0; arr[i*3+1] = 0; arr[i*3+2] = 0;
+    }
+}
+function shapeRNAStrand(arr, count) {
+    // A single right-handed helix — the visual shorthand for a strand of RNA.
+    const turns = 4.5, length = 16, radius = 1.7;
+    for (let i = 0; i < count; i++) {
+        const t = i / Math.max(1, count - 1);
+        const a = t * turns * Math.PI * 2;
+        arr[i*3]     = Math.cos(a) * radius;
+        arr[i*3 + 1] = (t - 0.5) * length;
+        arr[i*3 + 2] = Math.sin(a) * radius;
+    }
+}
+function shapeDNAHelix(arr, count) {
+    // Two intertwined right-handed strands with base-pair rungs between them.
+    const turns = 3.2, length = 22, radius = 2.6;
+    const strandFrac = 0.36;
+    const halfStrand = Math.max(1, Math.floor(count * strandFrac));
+    const rungCount  = Math.max(0, count - 2 * halfStrand);
+    for (let i = 0; i < halfStrand; i++) {
+        const t = i / Math.max(1, halfStrand - 1);
+        const a = t * turns * Math.PI * 2;
+        const y = (t - 0.5) * length;
+        // Strand A
+        arr[i*3]     = Math.cos(a) * radius;
+        arr[i*3 + 1] = y;
+        arr[i*3 + 2] = Math.sin(a) * radius;
+        // Strand B (π-offset)
+        const j = i + halfStrand;
+        arr[j*3]     = Math.cos(a + Math.PI) * radius;
+        arr[j*3 + 1] = y;
+        arr[j*3 + 2] = Math.sin(a + Math.PI) * radius;
+    }
+    // Base-pair rungs: short lines spanning the two strands, distributed
+    // along Y. Cells are placed at fractional positions along the rung so
+    // the ladder reads even with low rung counts.
+    for (let i = 0; i < rungCount; i++) {
+        const segIdx   = Math.floor(i / 4);      // which rung
+        const segPos   = (i % 4) / 4;            // 0,.25,.5,.75 along rung
+        const segCount = Math.max(1, Math.ceil(rungCount / 4));
+        const tt = (segIdx + 0.5) / segCount;
+        const a = tt * turns * Math.PI * 2;
+        const y = (tt - 0.5) * length;
+        const xA = Math.cos(a) * radius, zA = Math.sin(a) * radius;
+        const xB = Math.cos(a + Math.PI) * radius, zB = Math.sin(a + Math.PI) * radius;
+        const k = 2 * halfStrand + i;
+        arr[k*3]     = xA + (xB - xA) * segPos;
+        arr[k*3 + 1] = y;
+        arr[k*3 + 2] = zA + (zB - zA) * segPos;
+    }
+}
+function shapeVirusCapsid(arr, count) {
+    // Capsid: cells on a Fibonacci sphere. Then a smaller batch of "spikes"
+    // (glycoproteins) sitting just outside the capsid for that classic icon
+    // -of-a-virus silhouette.
+    const capsidCount = Math.max(1, Math.floor(count * 0.75));
+    const spikeCount  = Math.max(0, count - capsidCount);
+    const r = 4.4;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < capsidCount; i++) {
+        const y = capsidCount > 1 ? 1 - (i / (capsidCount - 1)) * 2 : 0;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * i;
+        arr[i*3]     = Math.cos(th) * cr * r;
+        arr[i*3 + 1] = y * r;
+        arr[i*3 + 2] = Math.sin(th) * cr * r;
+    }
+    const spikeR = r * 1.55;
+    for (let i = 0; i < spikeCount; i++) {
+        const y = spikeCount > 1 ? 1 - (i / (spikeCount - 1)) * 2 : 0;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        // Offset the spike phase from the capsid so they alternate visually.
+        const th = phi * i + 0.6;
+        const k = capsidCount + i;
+        arr[k*3]     = Math.cos(th) * cr * spikeR;
+        arr[k*3 + 1] = y * spikeR;
+        arr[k*3 + 2] = Math.sin(th) * cr * spikeR;
+    }
+}
+function shapeRandomLifeform(arr, count) {
+    // The original "stylised nematode / bärtierchen" used by the cluster→
+    // organism morph for stages without a dedicated shape yet.
+    const organismLength = 28;
+    for (let i = 0; i < count; i++) {
+        let t = (Math.random() - 0.5) * 2;
+        t = Math.sign(t) * Math.pow(Math.abs(t), 0.8);
+        t = (t + 1) / 2;
+        const x = (t - 0.5) * organismLength;
+        let thickness = Math.sin(t * Math.PI) * 3.6;
+        if (t > 0.7) thickness += Math.sin((t - 0.7) * Math.PI / 0.3) * 1.2;
+        if (t < 0.1) thickness *= (t * 10);
+        const ang = Math.random() * Math.PI * 2;
+        const rad = Math.random();
+        const isOrgan = rad < 0.35 && t > 0.2 && t < 0.85;
+        const r = isOrgan ? (rad * thickness) : (Math.sqrt(rad) * thickness);
+        arr[i*3]     = x;
+        arr[i*3 + 1] = Math.sin(ang) * r;
+        arr[i*3 + 2] = Math.cos(ang) * r;
+        // We deliberately do NOT touch cellTypes here. The organism's tissue
+        // pattern lives in the separately-initialised cellTypes buffer.
+    }
 }
 
 // --- Noise GLSL (Ashima/Stefan Gustavson simplex 3D) -----------------------
@@ -1654,33 +1834,42 @@ instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 instanced.count = 1;
 scene.add(instanced);
 
-// Per-instance target morphology (a stylised nematode/bärtierchen).
-// Generated once and reused — cheap.
+// Per-instance buffers. targetPositions is REWRITABLE per stage (see
+// applyShape below) so each stage can have its own morphology. clusterOffsets
+// and cellTypes are immutable per-instance traits.
 const targetPositions = new Float32Array(MAX_INSTANCES * 3);
 const clusterOffsets  = new Float32Array(MAX_INSTANCES);
 const cellTypes       = new Float32Array(MAX_INSTANCES);
-const organismLength  = 28;
+const organismLength  = 28; // referenced by the camera dolly below
+// cellTypes carries the organism's tissue pattern (membrane vs organ cells).
+// We compute it once using the same logic shapeRandomLifeform uses internally
+// so the late-stage organism reads consistently.
 for (let i = 0; i < MAX_INSTANCES; i++) {
-    let t = (Math.random() - 0.5) * 2;
-    t = Math.sign(t) * Math.pow(Math.abs(t), 0.8);
-    t = (t + 1) / 2;
-    const x = (t - 0.5) * organismLength;
-    let thickness = Math.sin(t * Math.PI) * 3.6;
-    if (t > 0.7) thickness += Math.sin((t - 0.7) * Math.PI / 0.3) * 1.2;
-    if (t < 0.1) thickness *= (t * 10);
-    const ang = Math.random() * Math.PI * 2;
-    const rad = Math.random();
-    const isOrgan = rad < 0.35 && t > 0.2 && t < 0.85;
-    const r = isOrgan ? (rad * thickness) : (Math.sqrt(rad) * thickness);
-    targetPositions[i*3]     = x;
-    targetPositions[i*3 + 1] = Math.sin(ang) * r;
-    targetPositions[i*3 + 2] = Math.cos(ang) * r;
+    let tt = (Math.random() - 0.5) * 2;
+    tt = Math.sign(tt) * Math.pow(Math.abs(tt), 0.8);
+    tt = (tt + 1) / 2;
+    const isOrgan = (Math.random() < 0.35) && tt > 0.2 && tt < 0.85;
     clusterOffsets[i] = Math.random() * 100;
     cellTypes[i] = isOrgan ? 1 : 0;
 }
+// Initial target positions: pre-populate with the random lifeform so the
+// organism morph at high stages still has a fully-stocked target buffer
+// even if the player jumps straight there (e.g. via a save load).
+shapeRandomLifeform(targetPositions, MAX_INSTANCES);
 cellGeo.setAttribute('targetPos',     new THREE.InstancedBufferAttribute(targetPositions, 3));
 cellGeo.setAttribute('clusterOffset', new THREE.InstancedBufferAttribute(clusterOffsets, 1));
 cellGeo.setAttribute('cellType',      new THREE.InstancedBufferAttribute(cellTypes, 1));
+
+// Track the currently-applied shape so we only rewrite the GPU buffer when
+// it actually changes.
+let currentShapeId = null;
+function applyShape(spec) {
+    const id = spec.id + ':' + spec.count;
+    if (currentShapeId === id) return;
+    currentShapeId = id;
+    spec.shape(targetPositions, spec.count);
+    cellGeo.attributes.targetPos.needsUpdate = true;
+}
 
 // Cluster layout — Fibonacci sphere. Per-instance scale interpolates from
 // "single hero cell" at low count to "tiny cells in a packed sphere" at high
@@ -1692,10 +1881,20 @@ function layoutCluster(count) {
     const phi = Math.PI * (3 - Math.sqrt(5));
     const radius = count <= 1 ? 0 : Math.pow(count - 1, 1/3) * 0.95;
     currentClusterRadius = radius;
-    // log-interp scale: 5× at count=1 (paired with the closer camera dolly
-    // this fills the frame), 1× by count≈250.
-    const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
-    const cellScale = 5.0 * (1 - sLerp) + 1.0 * sLerp;
+    // Per-shape cell scale overrides:
+    //   'hero' = single big cell (proto-molecule);
+    //   'thin' = many small cells on a curve (RNA/DNA helix, virus capsid);
+    //   default = log-interp (5× hero → 1× by count≈250) for organism phases.
+    let cellScale;
+    const hint = targets && targets.cellScaleHint;
+    if (hint === 'hero') {
+        cellScale = 6.5;
+    } else if (hint === 'thin') {
+        cellScale = 0.65;
+    } else {
+        const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
+        cellScale = 5.0 * (1 - sLerp) + 1.0 * sLerp;
+    }
     for (let i = 0; i < count; i++) {
         const y = count > 1 ? 1 - (i / (count - 1)) * 2 : 0;
         const r = Math.sqrt(Math.max(0, 1 - y*y));
@@ -1716,6 +1915,7 @@ function layoutCluster(count) {
 
 let displayedCount = 1;
 let targets = stageToTargets(1);
+applyShape(targets);
 layoutCluster(1);
 
 // Plankton — soft bokeh debris in the background of the cell stage.
@@ -1795,9 +1995,22 @@ const BioNexus = {
         resize();
     },
     setPaused(p) { bioPaused = !!p; },
-    setStage(stage) {
+    setStage(stage, opts) {
+        const instant = !!(opts && opts.instant);
+        const prev = targets;
         targets = stageToTargets(stage);
-        cellMat.uniforms.morph.value = targets.morph;
+        // Rewrite the per-instance target positions for the new shape.
+        applyShape(targets);
+        // Re-cluster animation: on a stage transition the cells should be
+        // visibly seen "respawning" into the new shape. We drop the morph
+        // uniform to 0 and let update() lerp it back up to spec.morph. On
+        // instant=true (initial load) we snap so the saved stage is visible
+        // immediately.
+        if (instant || !prev || prev.id === targets.id) {
+            cellMat.uniforms.morph.value = targets.morph;
+        } else {
+            cellMat.uniforms.morph.value = 0;
+        }
         cellMat.uniforms.swim.value  = targets.swim;
         const phaseEl = document.getElementById('bioPhase');
         if (phaseEl) phaseEl.textContent = targets.label;
@@ -1861,13 +2074,16 @@ const BioNexus = {
         clickStrength *= Math.pow(0.012, dt); // ~halves every ~150ms
         cellMat.uniforms.clickStrength.value = clickStrength;
 
-        // Camera idle parallax + dynamic dolly. The dolly keeps the cluster
-        // filling roughly the same fraction of the frame at all sizes: a lone
-        // cell reads as a hero, a 4000-cell colony still fits with margin.
+        // Camera idle parallax + dynamic dolly. Keeps the cluster filling
+        // roughly the same fraction of the frame at every stage. Each shape
+        // spec can publish a naturalRadius hint — the helices and capsid
+        // need that, because their *bounding* size differs wildly from the
+        // cluster sphere radius.
         const t = time * 0.18;
-        // organism phase pulls the camera further back so the full body fits.
         const morphPull = um.value * organismLength * 0.4;
-        cameraTargetZ = Math.max(14, currentClusterRadius * 4 + 9 + morphPull);
+        const shapeNatural = (targets && targets.naturalRadius) || 0;
+        const effectiveRadius = Math.max(shapeNatural, currentClusterRadius);
+        cameraTargetZ = Math.max(12, effectiveRadius * 3.0 + 9 + morphPull);
         camera.position.z += (cameraTargetZ - camera.position.z) * 0.04;
         // Subtler parallax than before — scaled with current zoom so it doesn't
         // feel hyperactive when the camera is close to a single hero cell.
@@ -1893,8 +2109,9 @@ const BioNexus = {
 
 window.BioNexus = BioNexus;
 // Module scripts defer, so the classic game script has already executed
-// loadGame() by the time we get here — sync to the loaded stage.
-BioNexus.setStage((window.game && window.game.stage) ? window.game.stage : 1);
+// loadGame() by the time we get here — sync to the loaded stage instantly
+// (no re-cluster animation, we want the saved stage visible immediately).
+BioNexus.setStage((window.game && window.game.stage) ? window.game.stage : 1, { instant: true });
 // Notify the classic script in case it wants to refresh anything stage-dependent.
 window.dispatchEvent(new Event('bionexus:ready'));
 </script>
