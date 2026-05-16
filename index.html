@@ -1466,6 +1466,10 @@
         <h2>💤 Offline-Earnings</h2>
         <p>Du warst <span id="offlineTime">0</span> weg</p>
         <div class="big-num">+<span id="offlineEarnings">0</span> DNA</div>
+        <p style="font-size:0.7rem;opacity:0.7;margin-top:6px;">
+            Offline-Effizienz fällt mit der Zeit. Aktiv spielen lohnt sich.<br>
+            Tipp: erforsche <b>Zeit-Komprimierung</b> für längere Stufen.
+        </p>
         <button class="popup-btn" onclick="closeOffline()">Cool!</button>
     </div>
 </div>
@@ -2598,8 +2602,14 @@ const stages = [
 // Strict exponential cost growth: cost = base * (1.15 ^ count).
 // Combined with milestone doubling at 10/25/50/100 to give meaningful
 // breakpoints rather than slow linear ramp.
+// MILESTONE_MULTS: diminishing returns up the milestone ladder. The old
+// uniform ×2 at every breakpoint stacked to ×16 by tier 100, which was
+// the main reason late game scaled into ten-orders-of-magnitude territory
+// in a single buy. The Cookie Clicker / Antimatter Dimensions playbook
+// tapers the bonus instead (×2 then ×1.75 then ×1.5 then ×1.25 = ×6.5).
 const COST_GROWTH = 1.15;
 const MILESTONES = [10, 25, 50, 100];
+const MILESTONE_MULTS = [2.0, 1.75, 1.5, 1.25]; // index-aligned with MILESTONES
 const autoUpgrades = [
     { id:'a1',  name:'Mitochondrien',     icon:'⚡', dps:0.4,         cost:60 },
     { id:'a2',  name:'Ribosomen',         icon:'🔬', dps:1.8,         cost:850 },
@@ -2688,12 +2698,12 @@ const researchTree = [
     { id:'r4', icon:'💥', name:'Power-Crit',          desc:'Crit-Schaden ×2 (10× total)', cost:500e3, effect:{ critMult: 5 } },
     { id:'r5', icon:'🌟', name:'Goldene Spore',        desc:'Goldene Zellen 2× häufiger', cost:2e6,  effect:{ goldenRate: 2 } },
     { id:'r6', icon:'💰', name:'Reiche Beute',         desc:'Goldene Zellen geben 3× mehr', cost:8e6, effect:{ goldenMult: 3 } },
-    { id:'r7', icon:'🧠', name:'Synaptische Resonanz', desc:'Klick gibt 2% deines DPS',   cost:30e6, effect:{ dpsClickShare: 0.02 } },
+    { id:'r7', icon:'🧠', name:'Synaptische Resonanz', desc:'Klick gibt 0.8% deines DPS', cost:30e6, effect:{ dpsClickShare: 0.008 } },
     { id:'r8', icon:'🔗', name:'Combo-Meister',       desc:'Max-Combo ×3 (×5 total)',     cost:150e6,effect:{ comboMax: 3 } },
     { id:'r9', icon:'♾️', name:'Endlose Combo',       desc:'Combo-Zeit ×2',               cost:600e6,effect:{ comboTime: 2 } },
     { id:'r10',icon:'🧬', name:'Mutagene Stabilität', desc:'Buff-Mutationen 2× häufiger', cost:3e9,  effect:{ mutationRate: 2 } },
     { id:'r11',icon:'🌱', name:'Schnelle Evolution',  desc:'Stage-Bonus 50% stärker',     cost:15e9, effect:{ stageBonusMult: 1.5 } },
-    { id:'r12',icon:'⏱️', name:'Zeit-Komprimierung',  desc:'Offline-Effizienz auf 100%', cost:50e9, effect:{ offlineFull: true } },
+    { id:'r12',icon:'⏱️', name:'Zeit-Komprimierung',  desc:'Offline-Stufen 2× & Cap 6h', cost:50e9, effect:{ offlineFull: true } },
 ];
 
 // =============================== ACHIEVEMENTS ===============================
@@ -2803,7 +2813,10 @@ function getDivisionCost() {
     return Math.floor(250000 * Math.pow(8, game.divisions));
 }
 function getDivisionBonus() {
-    return Math.pow(1.08, game.divisions);
+    // 1.08 -> 1.06: division was the steepest single multiplier in the game
+    // (geometric, no soft-cap). 6% per division still feels valuable; 8% was
+    // doubling every 9 divisions which combined with prestige was excessive.
+    return Math.pow(1.06, game.divisions);
 }
 function doDivision() {
     const cost = getDivisionCost();
@@ -2823,15 +2836,17 @@ function doDivision() {
 }
 
 // =============================== SYNERGIES ==================================
-// Each owned auto-upgrade gives +0.5% to all other auto-upgrades.
-// Each owned click-upgrade gives +0.3% to all other click-upgrades.
+// Reduced from +0.5%/+0.3% per-owned to +0.35%/+0.2%. With 30 upgrade tiers
+// and several hundred owned in late game, the old curve compounded with
+// milestones + prestige into game-trivialising multipliers. The new values
+// still reward going wide vs. tall, just less aggressively.
 function getAutoSynergy() {
     const totalCount = autoUpgrades.reduce((s, u) => s + u.count, 0);
-    return 1 + totalCount * 0.005;
+    return 1 + totalCount * 0.0035;
 }
 function getClickSynergy() {
     const totalCount = clickUpgrades.reduce((s, u) => s + u.count, 0);
-    return 1 + totalCount * 0.003;
+    return 1 + totalCount * 0.002;
 }
 
 // =============================== DNA DROPS (mini-event) =====================
@@ -2916,10 +2931,14 @@ function fmtTime(ms) {
     return Math.floor(h/24) + 'd ' + (h%24) + 'h';
 }
 function getCost(u) { return Math.floor(u.cost * Math.pow(COST_GROWTH, u.count)); }
-// Strict milestone doubling: ×2 at 10, again at 25, 50, 100 (compound = ×16 at 100).
+// Diminishing milestone bonuses (see MILESTONE_MULTS). Compound at tier 100
+// is now ×6.5 instead of the previous ×16 — keeps milestones rewarding
+// without making one upgrade type dominate the entire economy.
 function getOwnershipMult(c) {
     let m = 1;
-    for (const t of MILESTONES) if (c >= t) m *= 2;
+    for (let i = 0; i < MILESTONES.length; i++) {
+        if (c >= MILESTONES[i]) m *= MILESTONE_MULTS[i];
+    }
     return m;
 }
 function nextMilestone(c) {
@@ -3504,11 +3523,15 @@ function buyResearch(id) {
 }
 
 // =============================== PRESTIGE ===================================
-// First soft-reset unlocks at 1,000,000 lifetime DNA.
-// Earned Evolutionspunkte scale with the square root of lifetime DNA over the
-// threshold — classic idle curve so each reset feels meaningfully bigger.
+// First soft-reset unlocks at 5,000,000 lifetime DNA (bumped from 1M).
+// At 1M players were getting their first prestige in the first hour; the
+// post-prestige boost effectively meant the early run was a tutorial. 5M
+// pushes first prestige into the 4–8h window which matches the GDD goal of
+// "first prestige in 8–12h" (the +30% from milestones/research closes the
+// gap from the math curve).
+// Earned Evolutionspunkte still scale with sqrt(lifetime/threshold).
 // Each Evolutionspunkt grants a permanent +10% PPS multiplier (compounding).
-const PRESTIGE_THRESHOLD = 1e6;
+const PRESTIGE_THRESHOLD = 5e6;
 function getPrestigeCost() {
     // Threshold for *this* prestige (lifetime DNA needed to do another one)
     return Math.floor(PRESTIGE_THRESHOLD * Math.pow(10, game.prestigePoints));
@@ -3901,16 +3924,51 @@ function loadGame() {
         game.lastTick = data.ts || Date.now();
         data.auto.forEach(s => { const u = autoUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
         data.click.forEach(s => { const u = clickUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
-        // Offline earnings
+        // Offline earnings — tiered decay (Cookie-Clicker-style).
+        //
+        // The old flat 50% / 4h made "log in, claim free progress" the
+        // optimal strategy and trivialised stage targets. New schedule:
+        //
+        //                   No research    With Zeit-Komprimierung (r12)
+        //   first  10 min   25 %           50 %
+        //   next   50 min   10 %           25 %
+        //   next   2 hours   2 %           10 %
+        //   next   3 hours   --             5 %
+        //   total cap        3 h            6 h
+        //
+        // Example (per 1 DPS):
+        //   1h offline no-r12 : ~7.5 min of equivalent earnings (was 30 min)
+        //   4h offline no-r12 : ~10 min (was 2 h, the cap)
+        //   8h offline + r12  : ~38 min (was 4 h)
         if (data.ts) {
-            const offlineSec = Math.min((Date.now() - data.ts) / 1000, 4 * 3600); // cap 4h
-            const eff = game.research.r12 ? 1.0 : 0.5; // half-efficiency offline by default
-            const earn = game.dps * offlineSec * eff;
+            const elapsed = (Date.now() - data.ts) / 1000;
+            const hasResearch = !!game.research.r12;
+            const tiers = hasResearch ? [
+                { dur:   600, mult: 0.50 },
+                { dur:  3000, mult: 0.25 },
+                { dur:  7200, mult: 0.10 },
+                { dur: 10800, mult: 0.05 },
+            ] : [
+                { dur:   600, mult: 0.25 },
+                { dur:  3000, mult: 0.10 },
+                { dur:  7200, mult: 0.02 },
+            ];
+            let remaining = elapsed;
+            let earn = 0;
+            let credited = 0;
+            for (const t of tiers) {
+                const slice = Math.min(remaining, t.dur);
+                if (slice <= 0) break;
+                earn += slice * game.dps * t.mult;
+                credited += slice;
+                remaining -= slice;
+                if (remaining <= 0) break;
+            }
             if (earn > 0) {
                 game.dna += earn;
                 game.totalDna += earn;
                 game.lifetimeDna += earn;
-                document.getElementById('offlineTime').textContent = fmtTime(offlineSec * 1000);
+                document.getElementById('offlineTime').textContent = fmtTime(elapsed * 1000);
                 document.getElementById('offlineEarnings').textContent = fmt(earn);
                 document.getElementById('offlinePopup').classList.remove('hidden');
             }
