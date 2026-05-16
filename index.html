@@ -92,7 +92,7 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            overflow: hidden;
+            overflow: visible;          /* allow click-info to escape clipping */
             padding: 4px 12px 8px;
             min-height: 0;
         }
@@ -425,17 +425,25 @@
         @keyframes goldenAppear { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
 
         /* Click info — clamped width so very long click-value numbers stay on
-           one line and don't push the cell off-center. */
+           one line. Pinned to z-index 5 + small chip background so the cell
+           or a toast can't visually consume it. */
         .click-info {
             text-align: center;
             margin-top: 4px;
-            z-index: 1;
+            z-index: 5;
+            position: relative;
             font-size: 0.7rem;
             color: var(--text-dim);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 92vw;
+            padding: 3px 10px;
+            background: rgba(8, 11, 20, 0.55);
+            border-radius: 99px;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            flex-shrink: 0;
         }
         .click-info b { color: var(--accent); font-weight: 800; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 
@@ -713,14 +721,14 @@
         }
         .popup-btn:active { transform: scale(0.95); }
 
-        /* Toast (achievement unlock) — pinned just ABOVE the abilities bar so
-           it never covers the stage-progress text at the top (the friend's
-           screenshot showed two milestone toasts sitting right on the
-           "VIRUS · ... BIS PROKARYOT" line). The wrap stacks oldest-on-top
-           via column-reverse so newer messages appear closest to the bar. */
+        /* Toast (achievement unlock) — pinned INSIDE the cell-stage area
+           (above the abilities bar, below the cell) so it never lands on
+           the upgrade list at the bottom of the screen (which the friend's
+           screenshot showed). The wrap stacks oldest-on-top via column-
+           reverse so newer messages appear closest to the bar. */
         .toast-wrap {
-            position: fixed;
-            bottom: calc(170px + env(safe-area-inset-bottom));
+            position: absolute;
+            bottom: 6px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 900;
@@ -750,9 +758,8 @@
         .toast .ic { font-size: 1.2rem; }
         @keyframes toastIn { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         @keyframes toastOut { to{transform:translateY(20px);opacity:0} }
-        /* On taller viewports raise the toast stack so it doesn't crowd the
-           panel content the player is reading. */
-        @media (min-height: 760px) { .toast-wrap { bottom: calc(200px + env(safe-area-inset-bottom)); } }
+        /* The toast-wrap is now inside .main, so positioning is relative to
+           the cell-stage area — no viewport-height tweaks needed. */
         @media (prefers-reduced-motion: reduce) {
             .toast { animation-duration: 0.001ms, 0.001ms; }
         }
@@ -1331,6 +1338,9 @@
     <div class="click-info">
         <span>Klick = </span><b id="clickValue">+1</b><span id="critInfo"> · 5% Crit</span>
     </div>
+    <!-- Toasts live INSIDE main so they pin to the bottom of the cell-stage
+         area instead of (sometimes) landing on the upgrade panel. -->
+    <div class="toast-wrap" id="toastWrap"></div>
 </div>
 
 <div class="abilities" id="abilitiesBar"></div>
@@ -1456,6 +1466,10 @@
         <h2>💤 Offline-Earnings</h2>
         <p>Du warst <span id="offlineTime">0</span> weg</p>
         <div class="big-num">+<span id="offlineEarnings">0</span> DNA</div>
+        <p style="font-size:0.7rem;opacity:0.7;margin-top:6px;">
+            Offline-Effizienz fällt mit der Zeit. Aktiv spielen lohnt sich.<br>
+            Tipp: erforsche <b>Zeit-Komprimierung</b> für längere Stufen.
+        </p>
         <button class="popup-btn" onclick="closeOffline()">Cool!</button>
     </div>
 </div>
@@ -1469,8 +1483,6 @@
         <button class="popup-btn" onclick="closeStagePopup()">Weiter!</button>
     </div>
 </div>
-
-<div class="toast-wrap" id="toastWrap"></div>
 
 <!-- =====================================================================
      HTML-PROTOTYPE SHAPE ROADMAP (per-stage cell visuals)
@@ -1564,11 +1576,36 @@ const MAX_INSTANCES_BUDGET = (CORES <= 4 || MOBILE_UA) ? 1500 : 4000;
 let qualityScale = 1.0; // adjusted by window.BioNexus.setQualityScale()
 const MAX_INSTANCES = MAX_INSTANCES_BUDGET; // hard-cap allocated up front
 const PALETTE = {
-    membrane: new THREE.Color('#00ffa3'), // game accent green
-    organ:    new THREE.Color('#ffd24a'), // game gold (was pink in reference — recolored for brand cohesion)
+    membrane: new THREE.Color('#00ffa3'), // game accent green (default fallback)
+    organ:    new THREE.Color('#ffd24a'), // game gold (organelles / second strand)
     crit:     new THREE.Color('#ff5da2'),
     glow:     new THREE.Color('#4fd1ff'), // game accent-2 cyan
 };
+
+// Per-stage palettes. Each entry colours the cluster differently so each
+// life-form has its own visual identity — no more "everything is green".
+// `membrane` = the bulk cell colour, `organ` = the cellType=1 cells (used
+// as the "second strand" on the DNA helix, "spikes" on the virus, etc),
+// `glow` = the click-shockwave halo. Picked to match the biological mood:
+// primordial gold, RNA crimson, DNA-cyan-+-gold, virus violet, etc.
+const STAGE_PALETTES = {
+    proto:     { membrane: '#fff5b0', organ: '#ffd24a', glow: '#ffae42' },
+    rna:       { membrane: '#ff5da2', organ: '#ff8a3d', glow: '#ff8fc8' },
+    dna:       { membrane: '#4fd1ff', organ: '#ffd24a', glow: '#7df3ff' },
+    virus:     { membrane: '#ab46e0', organ: '#ff5da2', glow: '#dc6bff' },
+    prokaryot: { membrane: '#ffb86b', organ: '#ffd24a', glow: '#ffcb88' },
+    bakterium: { membrane: '#39e0b8', organ: '#4fd1ff', glow: '#7df3ff' },
+    archaea:   { membrane: '#8b6dff', organ: '#c79dff', glow: '#aa88ff' },
+    amoebe:    { membrane: '#b6ff4a', organ: '#fff36a', glow: '#d4ff9c' },
+    paramec:   { membrane: '#62e9ff', organ: '#a0f4ff', glow: '#c7f9ff' },
+    // Late-stage fallback retains the original neon-green identity.
+    organism:  { membrane: '#00ffa3', organ: '#ffd24a', glow: '#4fd1ff' },
+};
+function paletteForSpec(spec) {
+    if (!spec) return STAGE_PALETTES.organism;
+    if (STAGE_PALETTES[spec.id]) return STAGE_PALETTES[spec.id];
+    return STAGE_PALETTES.organism;
+}
 
 // Stage → shape spec. Returns the per-stage configuration used by the
 // renderer: how many instances to draw, what shape they should form, how
@@ -1579,17 +1616,31 @@ function getStageShape(stage) {
     const s = Math.max(1, Math.min(30, stage));
 
     // -- Iteration 1: hand-tuned shapes for the subzellulär phase --------
-    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero', anatomy:'none' };
-    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 9.0,  cellScaleHint:'thin', anatomy:'none' };
-    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 11.5, cellScaleHint:'thin', anatomy:'none' };
-    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin', anatomy:'none' };
+    // Each stage now publishes a per-stage palette key (paletteForSpec uses
+    // spec.id), a rotation triple in radians per second, and a `signature`
+    // hero animation flag (plasma / flow / basepair / throb / breathe /
+    // swim / tumble / hunt / glide) — the renderer dispatches on this in
+    // BioNexus.update().
+    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.4,  cellScaleHint:'hero',  anatomy:'none',       uniform:true,
+                          rotation:{ y:0.00, x:0.0,  z:0.0  }, signature:'plasma' };
+    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 5.5,  cellScaleHint:'thin',  anatomy:'none',       uniform:true,
+                          rotation:{ y:0.55, x:0.0,  z:0.0  }, signature:'flow' };
+    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 8.0,  cellScaleHint:'thin',  anatomy:'none',       uniform:'dnahelix',
+                          rotation:{ y:0.32, x:0.0,  z:0.0  }, signature:'basepair' };
+    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin',  anatomy:'none',       uniform:'capsid',
+                          rotation:{ y:0.18, x:0.06, z:0.0  }, signature:'throb' };
 
     // -- Iteration 2: mikrobiell phase, hand-tuned per stage --------------
-    if (s === 5) return { id:'prokaryot', count: 70, morph:1, swim:0, label:'Prokaryot',  shape: shapeProkaryot, naturalRadius: 3.4, cellScaleHint:'micro', anatomy:'none' };
-    if (s === 6) return { id:'bakterium', count:130, morph:1, swim:0, label:'Bakterium',  shape: shapeBakterium, animate: animateBakteriumTail, naturalRadius: 6.5, cellScaleHint:'micro', anatomy:'flagellum' };
-    if (s === 7) return { id:'archaea',   count:150, morph:1, swim:0, label:'Archaea',    shape: shapeArchaea,   naturalRadius: 4.6, cellScaleHint:'micro', anatomy:'bumps' };
-    if (s === 8) return { id:'amoebe',    count:220, morph:1, swim:0, label:'Amöbe',      shape: shapeAmoeba,    animate: animateAmoebaPseudopods, naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pseudopods' };
-    if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia' };
+    if (s === 5) return { id:'prokaryot', count: 70, morph:1, swim:0, label:'Prokaryot',  shape: shapeProkaryot, naturalRadius: 3.4, cellScaleHint:'micro', anatomy:'none',       uniform:true,
+                          rotation:{ y:0.10, x:0.0,  z:0.0  }, signature:'breathe' };
+    if (s === 6) return { id:'bakterium', count:130, morph:1, swim:0, label:'Bakterium',  shape: shapeBakterium, animate: animateBakteriumTail, naturalRadius: 6.5, cellScaleHint:'micro', anatomy:'flagellum',  uniform:true,
+                          rotation:{ y:0.0,  x:0.0,  z:0.0  }, signature:'swim' };
+    if (s === 7) return { id:'archaea',   count:150, morph:1, swim:0, label:'Archaea',    shape: shapeArchaea,   naturalRadius: 4.6, cellScaleHint:'micro', anatomy:'bumps',      uniform:true,
+                          rotation:{ y:0.22, x:0.13, z:0.07 }, signature:'tumble' };
+    if (s === 8) return { id:'amoebe',    count:220, morph:1, swim:0, label:'Amöbe',      shape: shapeAmoeba,    animate: animateAmoebaPseudopods, naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pseudopods', uniform:true,
+                          rotation:{ y:0.06, x:0.0,  z:0.04 }, signature:'hunt' };
+    if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia',      uniform:true,
+                          rotation:{ y:0.18, x:0.0,  z:0.0  }, signature:'glide' };
 
     // -- Fallback: existing cluster→organism progression for stages 10–30 --
     const t = (s - 1) / 29;
@@ -1620,7 +1671,10 @@ function shapeProtoMolecule(arr, count) {
 }
 function shapeRNAStrand(arr, count) {
     // A single right-handed helix — the visual shorthand for a strand of RNA.
-    const turns = 4.5, length = 16, radius = 1.7;
+    // Wider than a real RNA strand on purpose: must read as a spiral at this
+    // small camera distance (the friend's screenshot showed it as a thin
+    // vertical column when the radius was 1.7).
+    const turns = 4.5, length = 14, radius = 3.0;
     for (let i = 0; i < count; i++) {
         const t = i / Math.max(1, count - 1);
         const a = t * turns * Math.PI * 2;
@@ -1631,7 +1685,9 @@ function shapeRNAStrand(arr, count) {
 }
 function shapeDNAHelix(arr, count) {
     // Two intertwined right-handed strands with base-pair rungs between them.
-    const turns = 3.2, length = 22, radius = 2.6;
+    // Radius bumped from 2.6 → 5.0 so the spiral is unmistakable at the
+    // game's camera distance.
+    const turns = 3.0, length = 20, radius = 5.0;
     const strandFrac = 0.36;
     const halfStrand = Math.max(1, Math.floor(count * strandFrac));
     const rungCount  = Math.max(0, count - 2 * halfStrand);
@@ -2029,6 +2085,7 @@ uniform vec3 colorMembrane;
 uniform vec3 colorOrgan;
 uniform vec3 colorGlow;
 uniform float time;
+uniform float bodyPulse;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -2043,9 +2100,16 @@ void main() {
         fresnel = smoothstep(0.08, 1.0, rim);
     }
 
+    // Stage signature heartbeat — brightens the whole membrane in sync with
+    // breathe / throb / basepair / plasma animations driven from JS.
+    base *= 1.0 + bodyPulse * 0.45;
+
     vec3 col = base * (fresnel * 1.6 + inner);
     // Click flash — bright cyan halo on cells inside the shockwave
     col += colorGlow * vGlow * 1.4;
+    // Signature heartbeat also leaks a hint of glow colour so a pulse on
+    // a stationary cluster reads as more than just brightness.
+    col += colorGlow * bodyPulse * 0.15;
 
     float alpha = clamp(fresnel + inner + vGlow * 0.6, 0.0, 1.0);
     gl_FragColor = vec4(col, alpha);
@@ -2089,11 +2153,24 @@ const cellMat = new THREE.ShaderMaterial({
         colorMembrane:  { value: PALETTE.membrane.clone() },
         colorOrgan:     { value: PALETTE.organ.clone() },
         colorGlow:      { value: PALETTE.glow.clone() },
+        // bodyPulse: signature animations (breathe/throb/basepair) write a
+        // 0..1 value here; the fragment shader uses it to brighten the
+        // membrane in sync with the heartbeat.
+        bodyPulse:      { value: 0 },
     },
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
 });
+// Smooth-lerp targets for the per-stage palette (avoids hard colour pops on
+// stage transitions). The update loop nudges the live uniforms toward
+// these every frame.
+const targetMembrane = PALETTE.membrane.clone();
+const targetOrgan    = PALETTE.organ.clone();
+const targetGlow     = PALETTE.glow.clone();
+// Signature-driven position offset (used by swim/glide to drift the whole
+// cluster slightly without rewriting per-instance positions).
+const signatureOffset = new THREE.Vector3();
 
 const instanced = new THREE.InstancedMesh(cellGeo, cellMat, MAX_INSTANCES);
 instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -2130,11 +2207,46 @@ cellGeo.setAttribute('cellType',      new THREE.InstancedBufferAttribute(cellTyp
 // it actually changes.
 let currentShapeId = null;
 function applyShape(spec) {
-    const id = spec.id + ':' + spec.count;
+    const id = spec.id + ':' + spec.count + ':' + (spec.uniform || 'mixed');
     if (currentShapeId === id) return;
     currentShapeId = id;
     spec.shape(targetPositions, spec.count);
     cellGeo.attributes.targetPos.needsUpdate = true;
+    // Per-shape cellType policy:
+    //   true       = all membrane (clean single colour)
+    //   'dnahelix' = first half = strand A (0=membrane/cyan), second half =
+    //                strand B (1=organ/gold), rungs (rest) = alternating
+    //   'capsid'   = capsid cells (first 75%) = 0, spike cells = 1
+    //   falsy      = deterministic tissue mix (used by organism morph)
+    let dirty = false;
+    if (spec.uniform === true) {
+        for (let i = 0; i < spec.count; i++) {
+            if (cellTypes[i] !== 0) { cellTypes[i] = 0; dirty = true; }
+        }
+    } else if (spec.uniform === 'dnahelix') {
+        // Match shapeDNAHelix's index layout: halfStrand-halfStrand-rungs.
+        const halfStrand = Math.max(1, Math.floor(spec.count * 0.36));
+        for (let i = 0; i < spec.count; i++) {
+            let v;
+            if (i < halfStrand)            v = 0;  // strand A
+            else if (i < 2 * halfStrand)    v = 1;  // strand B
+            else                            v = (i & 1);
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
+    } else if (spec.uniform === 'capsid') {
+        const capsidCount = Math.max(1, Math.floor(spec.count * 0.75));
+        for (let i = 0; i < spec.count; i++) {
+            const v = (i < capsidCount) ? 0 : 1;
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
+    } else {
+        for (let i = 0; i < spec.count; i++) {
+            const r = Math.sin(i * 17.731) * 43758.5453;
+            const v = ((r - Math.floor(r)) < 0.35) ? 1 : 0;
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
+    }
+    if (dirty) cellGeo.attributes.cellType.needsUpdate = true;
 }
 
 // ===== Anatomy SVG overlay ===============================================
@@ -2235,7 +2347,7 @@ function layoutCluster(count) {
     if (hint === 'hero') {
         cellScale = 6.5;
     } else if (hint === 'thin') {
-        cellScale = 0.65;
+        cellScale = 0.85;
     } else if (hint === 'micro') {
         // Mid-density microbial cluster: enough body to read at a glance,
         // small enough that ~200 cells still feel like discrete organelles
@@ -2366,13 +2478,24 @@ const BioNexus = {
         cellMat.uniforms.swim.value  = targets.swim;
         const phaseEl = document.getElementById('bioPhase');
         if (phaseEl) phaseEl.textContent = targets.label;
-        if (stage !== lastStageApplied) {
-            // Re-tint membrane subtly with stage advancement.
-            const t = (stage - 1) / 29;
-            cellMat.uniforms.colorMembrane.value
-                .copy(PALETTE.membrane)
-                .lerp(PALETTE.glow, t * 0.4);
-        }
+
+        // Per-stage palette — replaces the old "everything is green, lerp
+        // toward cyan" code. Stored target colours; the update() loop lerps
+        // the live uniforms toward these so colour changes ease in rather
+        // than snap. Also drives the anatomy-layer CSS color so the SVG
+        // flagellum / cilia tint to match.
+        const pal = paletteForSpec(targets);
+        targetMembrane.set(pal.membrane);
+        targetOrgan   .set(pal.organ);
+        targetGlow    .set(pal.glow);
+        const sl = document.getElementById('anatomyLayer');
+        if (sl) sl.style.color = pal.membrane;
+
+        // Reset rotation accumulator on shape change so each stage starts
+        // from neutral orientation.
+        instanced.rotation.set(0, 0, 0);
+        signatureOffset.set(0, 0, 0);
+        cellMat.uniforms.bodyPulse.value = 0;
         lastStageApplied = stage;
     },
 
@@ -2424,6 +2547,80 @@ const BioNexus = {
             targets.animate(targetPositions, targets.count, time);
             cellGeo.attributes.targetPos.needsUpdate = true;
         }
+
+        // ----- Per-stage signature animation dispatcher --------------------
+        // Each stage owns a single "hero" animation. Centralising the
+        // dispatch here keeps the per-stage specs declarative — they just
+        // name the signature, this switch implements it.
+        let pulseTarget = 0;
+        const sig = targets && targets.signature;
+        if (sig === 'plasma') {
+            // Stage 1 Proto-Molekül — primordial energy core. Continuous
+            // breathing pulse at ~1.6 Hz with a sharp re-attack so it feels
+            // alive rather than smooth-cosine boring.
+            const phase = time * 1.6;
+            pulseTarget = Math.pow(Math.max(0, Math.sin(phase)), 2.2);
+        } else if (sig === 'flow') {
+            // Stage 2 RNA-Strang — rotation provides motion; pulse is faint
+            // and ride-along so the strand reads as gliding ribbon.
+            pulseTarget = 0.18 + 0.12 * Math.sin(time * 1.1);
+        } else if (sig === 'basepair') {
+            // Stage 3 DNA-Helix — base pairs visibly pulse along the ladder.
+            // Faster, double-beat rhythm (sin² + offset second beat).
+            const a = Math.sin(time * 2.2);
+            const b = Math.sin(time * 2.2 + 1.9);
+            pulseTarget = 0.5 * (a*a + b*b);
+        } else if (sig === 'throb') {
+            // Stage 4 Virus — slow ominous throb, like it's "loading".
+            const phase = time * 0.85;
+            const s = Math.sin(phase);
+            pulseTarget = s > 0 ? s*s : 0;
+        } else if (sig === 'breathe') {
+            // Stage 5 Prokaryot — calm, near-sinusoidal living-thing breath.
+            pulseTarget = 0.5 + 0.5 * Math.sin(time * 0.9);
+            pulseTarget *= 0.6; // tone down — the rotation does the work
+        } else if (sig === 'swim') {
+            // Stage 6 Bakterium — drift forward and back in lockstep with
+            // the flagellum waveform. signatureOffset displaces the whole
+            // mesh; tail animation already lives in animateBakteriumTail.
+            const swimPhase = Math.sin(time * 6.0); // matches tail freq
+            signatureOffset.x = -swimPhase * 0.5; // counter-impulse to tail
+            // Body pulse on the kick downstroke
+            pulseTarget = 0.4 * Math.max(0, -swimPhase);
+        } else if (sig === 'tumble') {
+            // Stage 7 Archaea — rotation is the show. No extra body pulse.
+            pulseTarget = 0;
+        } else if (sig === 'hunt') {
+            // Stage 8 Amöbe — pulse on the inhale (gulp) phase of the
+            // pseudopod cycle from animateAmoebaPseudopods.
+            pulseTarget = 0.3 * (0.5 + 0.5 * Math.sin(time * 0.6 + 1.5));
+        } else if (sig === 'glide') {
+            // Stage 9 Paramecium — slow forward glide. Cilia animate in CSS.
+            signatureOffset.x = Math.sin(time * 0.6) * 1.5;
+            signatureOffset.y = Math.sin(time * 0.4) * 0.3;
+            pulseTarget = 0;
+        }
+        // Lerp the body-pulse uniform smoothly so changes between stages
+        // ease in (avoids a "pop" the instant the signature changes).
+        const bp = cellMat.uniforms.bodyPulse;
+        bp.value += (pulseTarget - bp.value) * Math.min(1, dt * 6);
+
+        // ----- Per-stage rotation -----------------------------------------
+        // Apply spec.rotation to the InstancedMesh (cheap — single matrix).
+        if (targets && targets.rotation) {
+            instanced.rotation.x += (targets.rotation.x || 0) * dt;
+            instanced.rotation.y += (targets.rotation.y || 0) * dt;
+            instanced.rotation.z += (targets.rotation.z || 0) * dt;
+        }
+        // Apply signature offset (swim drift / paramecium glide).
+        instanced.position.lerp(signatureOffset, Math.min(1, dt * 4));
+
+        // ----- Smooth palette lerp ----------------------------------------
+        // Stage-palette colours interpolate over ~1 sec so transitions feel
+        // organic instead of snapping.
+        cellMat.uniforms.colorMembrane.value.lerp(targetMembrane, Math.min(1, dt * 1.5));
+        cellMat.uniforms.colorOrgan   .value.lerp(targetOrgan,    Math.min(1, dt * 1.5));
+        cellMat.uniforms.colorGlow    .value.lerp(targetGlow,     Math.min(1, dt * 1.5));
 
         // Smoothly chase morph/swim (in case stage changed between frames).
         const um = cellMat.uniforms.morph;
@@ -2563,8 +2760,14 @@ const stages = [
 // Strict exponential cost growth: cost = base * (1.15 ^ count).
 // Combined with milestone doubling at 10/25/50/100 to give meaningful
 // breakpoints rather than slow linear ramp.
+// MILESTONE_MULTS: diminishing returns up the milestone ladder. The old
+// uniform ×2 at every breakpoint stacked to ×16 by tier 100, which was
+// the main reason late game scaled into ten-orders-of-magnitude territory
+// in a single buy. The Cookie Clicker / Antimatter Dimensions playbook
+// tapers the bonus instead (×2 then ×1.75 then ×1.5 then ×1.25 = ×6.5).
 const COST_GROWTH = 1.15;
 const MILESTONES = [10, 25, 50, 100];
+const MILESTONE_MULTS = [2.0, 1.75, 1.5, 1.25]; // index-aligned with MILESTONES
 const autoUpgrades = [
     { id:'a1',  name:'Mitochondrien',     icon:'⚡', dps:0.4,         cost:60 },
     { id:'a2',  name:'Ribosomen',         icon:'🔬', dps:1.8,         cost:850 },
@@ -2653,12 +2856,12 @@ const researchTree = [
     { id:'r4', icon:'💥', name:'Power-Crit',          desc:'Crit-Schaden ×2 (10× total)', cost:500e3, effect:{ critMult: 5 } },
     { id:'r5', icon:'🌟', name:'Goldene Spore',        desc:'Goldene Zellen 2× häufiger', cost:2e6,  effect:{ goldenRate: 2 } },
     { id:'r6', icon:'💰', name:'Reiche Beute',         desc:'Goldene Zellen geben 3× mehr', cost:8e6, effect:{ goldenMult: 3 } },
-    { id:'r7', icon:'🧠', name:'Synaptische Resonanz', desc:'Klick gibt 2% deines DPS',   cost:30e6, effect:{ dpsClickShare: 0.02 } },
+    { id:'r7', icon:'🧠', name:'Synaptische Resonanz', desc:'Klick gibt 0.8% deines DPS', cost:30e6, effect:{ dpsClickShare: 0.008 } },
     { id:'r8', icon:'🔗', name:'Combo-Meister',       desc:'Max-Combo ×3 (×5 total)',     cost:150e6,effect:{ comboMax: 3 } },
     { id:'r9', icon:'♾️', name:'Endlose Combo',       desc:'Combo-Zeit ×2',               cost:600e6,effect:{ comboTime: 2 } },
     { id:'r10',icon:'🧬', name:'Mutagene Stabilität', desc:'Buff-Mutationen 2× häufiger', cost:3e9,  effect:{ mutationRate: 2 } },
     { id:'r11',icon:'🌱', name:'Schnelle Evolution',  desc:'Stage-Bonus 50% stärker',     cost:15e9, effect:{ stageBonusMult: 1.5 } },
-    { id:'r12',icon:'⏱️', name:'Zeit-Komprimierung',  desc:'Offline-Effizienz auf 100%', cost:50e9, effect:{ offlineFull: true } },
+    { id:'r12',icon:'⏱️', name:'Zeit-Komprimierung',  desc:'Offline-Stufen 2× & Cap 6h', cost:50e9, effect:{ offlineFull: true } },
 ];
 
 // =============================== ACHIEVEMENTS ===============================
@@ -2768,7 +2971,10 @@ function getDivisionCost() {
     return Math.floor(250000 * Math.pow(8, game.divisions));
 }
 function getDivisionBonus() {
-    return Math.pow(1.08, game.divisions);
+    // 1.08 -> 1.06: division was the steepest single multiplier in the game
+    // (geometric, no soft-cap). 6% per division still feels valuable; 8% was
+    // doubling every 9 divisions which combined with prestige was excessive.
+    return Math.pow(1.06, game.divisions);
 }
 function doDivision() {
     const cost = getDivisionCost();
@@ -2788,15 +2994,17 @@ function doDivision() {
 }
 
 // =============================== SYNERGIES ==================================
-// Each owned auto-upgrade gives +0.5% to all other auto-upgrades.
-// Each owned click-upgrade gives +0.3% to all other click-upgrades.
+// Reduced from +0.5%/+0.3% per-owned to +0.35%/+0.2%. With 30 upgrade tiers
+// and several hundred owned in late game, the old curve compounded with
+// milestones + prestige into game-trivialising multipliers. The new values
+// still reward going wide vs. tall, just less aggressively.
 function getAutoSynergy() {
     const totalCount = autoUpgrades.reduce((s, u) => s + u.count, 0);
-    return 1 + totalCount * 0.005;
+    return 1 + totalCount * 0.0035;
 }
 function getClickSynergy() {
     const totalCount = clickUpgrades.reduce((s, u) => s + u.count, 0);
-    return 1 + totalCount * 0.003;
+    return 1 + totalCount * 0.002;
 }
 
 // =============================== DNA DROPS (mini-event) =====================
@@ -2881,10 +3089,14 @@ function fmtTime(ms) {
     return Math.floor(h/24) + 'd ' + (h%24) + 'h';
 }
 function getCost(u) { return Math.floor(u.cost * Math.pow(COST_GROWTH, u.count)); }
-// Strict milestone doubling: ×2 at 10, again at 25, 50, 100 (compound = ×16 at 100).
+// Diminishing milestone bonuses (see MILESTONE_MULTS). Compound at tier 100
+// is now ×6.5 instead of the previous ×16 — keeps milestones rewarding
+// without making one upgrade type dominate the entire economy.
 function getOwnershipMult(c) {
     let m = 1;
-    for (const t of MILESTONES) if (c >= t) m *= 2;
+    for (let i = 0; i < MILESTONES.length; i++) {
+        if (c >= MILESTONES[i]) m *= MILESTONE_MULTS[i];
+    }
     return m;
 }
 function nextMilestone(c) {
@@ -3469,11 +3681,15 @@ function buyResearch(id) {
 }
 
 // =============================== PRESTIGE ===================================
-// First soft-reset unlocks at 1,000,000 lifetime DNA.
-// Earned Evolutionspunkte scale with the square root of lifetime DNA over the
-// threshold — classic idle curve so each reset feels meaningfully bigger.
+// First soft-reset unlocks at 5,000,000 lifetime DNA (bumped from 1M).
+// At 1M players were getting their first prestige in the first hour; the
+// post-prestige boost effectively meant the early run was a tutorial. 5M
+// pushes first prestige into the 4–8h window which matches the GDD goal of
+// "first prestige in 8–12h" (the +30% from milestones/research closes the
+// gap from the math curve).
+// Earned Evolutionspunkte still scale with sqrt(lifetime/threshold).
 // Each Evolutionspunkt grants a permanent +10% PPS multiplier (compounding).
-const PRESTIGE_THRESHOLD = 1e6;
+const PRESTIGE_THRESHOLD = 5e6;
 function getPrestigeCost() {
     // Threshold for *this* prestige (lifetime DNA needed to do another one)
     return Math.floor(PRESTIGE_THRESHOLD * Math.pow(10, game.prestigePoints));
@@ -3866,16 +4082,51 @@ function loadGame() {
         game.lastTick = data.ts || Date.now();
         data.auto.forEach(s => { const u = autoUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
         data.click.forEach(s => { const u = clickUpgrades.find(x => x.id === s.id); if (u) u.count = s.count; });
-        // Offline earnings
+        // Offline earnings — tiered decay (Cookie-Clicker-style).
+        //
+        // The old flat 50% / 4h made "log in, claim free progress" the
+        // optimal strategy and trivialised stage targets. New schedule:
+        //
+        //                   No research    With Zeit-Komprimierung (r12)
+        //   first  10 min   25 %           50 %
+        //   next   50 min   10 %           25 %
+        //   next   2 hours   2 %           10 %
+        //   next   3 hours   --             5 %
+        //   total cap        3 h            6 h
+        //
+        // Example (per 1 DPS):
+        //   1h offline no-r12 : ~7.5 min of equivalent earnings (was 30 min)
+        //   4h offline no-r12 : ~10 min (was 2 h, the cap)
+        //   8h offline + r12  : ~38 min (was 4 h)
         if (data.ts) {
-            const offlineSec = Math.min((Date.now() - data.ts) / 1000, 4 * 3600); // cap 4h
-            const eff = game.research.r12 ? 1.0 : 0.5; // half-efficiency offline by default
-            const earn = game.dps * offlineSec * eff;
+            const elapsed = (Date.now() - data.ts) / 1000;
+            const hasResearch = !!game.research.r12;
+            const tiers = hasResearch ? [
+                { dur:   600, mult: 0.50 },
+                { dur:  3000, mult: 0.25 },
+                { dur:  7200, mult: 0.10 },
+                { dur: 10800, mult: 0.05 },
+            ] : [
+                { dur:   600, mult: 0.25 },
+                { dur:  3000, mult: 0.10 },
+                { dur:  7200, mult: 0.02 },
+            ];
+            let remaining = elapsed;
+            let earn = 0;
+            let credited = 0;
+            for (const t of tiers) {
+                const slice = Math.min(remaining, t.dur);
+                if (slice <= 0) break;
+                earn += slice * game.dps * t.mult;
+                credited += slice;
+                remaining -= slice;
+                if (remaining <= 0) break;
+            }
             if (earn > 0) {
                 game.dna += earn;
                 game.totalDna += earn;
                 game.lifetimeDna += earn;
-                document.getElementById('offlineTime').textContent = fmtTime(offlineSec * 1000);
+                document.getElementById('offlineTime').textContent = fmtTime(elapsed * 1000);
                 document.getElementById('offlineEarnings').textContent = fmt(earn);
                 document.getElementById('offlinePopup').classList.remove('hidden');
             }
