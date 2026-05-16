@@ -298,9 +298,43 @@
             opacity: 0.55;
         }
         .anatomy-layer .pseudopod-hint { stroke-dasharray: 3 4; opacity: 0.7; }
+        /* Iteration 3 anatomy overlays */
+        .anatomy-layer .hex-wall {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.4;
+            stroke-linejoin: round;
+            opacity: 0.7;
+            animation: hexPulse 3.6s ease-in-out infinite;
+        }
+        @keyframes hexPulse {
+            0%, 100% { opacity: 0.45; }
+            50%      { opacity: 0.85; }
+        }
+        .anatomy-layer .osculum {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            transform-origin: var(--ox, 0) var(--oy, 0);
+            transform-box: fill-box;
+            animation: osculumBreathe 4.5s ease-in-out infinite;
+            animation-delay: var(--delay, 0s);
+            opacity: 0.8;
+        }
+        @keyframes osculumBreathe {
+            0%, 100% { transform: scale(1);   opacity: 0.55; stroke-width: 1.4; }
+            50%      { transform: scale(1.4); opacity: 0.95; stroke-width: 0.9; }
+        }
+        .anatomy-layer .hydra-disc {
+            fill: currentColor;
+            stroke: none;
+            opacity: 0.6;
+        }
         @media (prefers-reduced-motion: reduce) {
             .anatomy-layer .flagellum-path { animation: none; stroke-dasharray: none; }
             .anatomy-layer .cilium { animation: none; transform: rotate(0); }
+            .anatomy-layer .hex-wall { animation: none; opacity: 0.6; }
+            .anatomy-layer .osculum { animation: none; transform: scale(1); }
         }
         body.qp-low .anatomy-layer { filter: none; }
         .float-text {
@@ -1511,10 +1545,19 @@
            9  Paramecium  prolate ellipsoid body + 36-cilium SVG ring with
                           staggered wave animation around the silhouette
 
-     [ ] Iteration 3  — Stages 10–12 (Zellulär)
-           10 Pflanzenzelle   hexagonal tile arrangement
-           11 Schwamm         porous spheroid (holes)
-           12 Hydra           tubular body + radial tentacles
+     [✓] Iteration 3  — Stages 10–12 (Zellulär)
+           10 Pflanzenzelle   honeycomb tile tissue (XY plane) with
+                              deterministic chloroplast pattern; SVG
+                              hex-wall rings on top; chlorophyll-green
+                              palette; cytoplasmic-streaming pulse
+           11 Schwamm         porous Fibonacci sphere (cells dropped where
+                              deterministic noise > threshold); 5 SVG
+                              oscula that breathe in lockstep with the
+                              'filter' inhale/exhale signature
+           12 Hydra           cylindrical body + 6 tentacles whose cells
+                              wave per-frame (animateHydraTentacles), each
+                              tentacle with its own phase; SVG basal disc
+                              so the creature has a visual anchor
 
      [ ] Iteration 4  — Stages 13–18 (Mehrzeller body plans)
            13 Plattwurm       flat elongated ribbon
@@ -1598,6 +1641,9 @@ const STAGE_PALETTES = {
     archaea:   { membrane: '#8b6dff', organ: '#c79dff', glow: '#aa88ff' },
     amoebe:    { membrane: '#b6ff4a', organ: '#fff36a', glow: '#d4ff9c' },
     paramec:   { membrane: '#62e9ff', organ: '#a0f4ff', glow: '#c7f9ff' },
+    plant:     { membrane: '#3aa14a', organ: '#d4ff4a', glow: '#9bff7d' }, // chlorophyll + young leaf
+    sponge:    { membrane: '#ff8a5c', organ: '#ffd17a', glow: '#ffb88a' }, // warm salmon / coral
+    hydra:     { membrane: '#5cd1a8', organ: '#a8e6c3', glow: '#7df3d4' }, // teal-symbiont
     // Late-stage fallback retains the original neon-green identity.
     organism:  { membrane: '#00ffa3', organ: '#ffd24a', glow: '#4fd1ff' },
 };
@@ -1642,15 +1688,22 @@ function getStageShape(stage) {
     if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia',      uniform:true,
                           rotation:{ y:0.18, x:0.0,  z:0.0  }, signature:'glide' };
 
-    // -- Fallback: existing cluster→organism progression for stages 10–30 --
+    // -- Iteration 3: zellulär phase (multicellular tissue) ---------------
+    if (s === 10) return { id:'plant',    count:240, morph:1, swim:0, label:'Pflanzen',   shape: shapePflanzenzelle, naturalRadius: 7.5, cellScaleHint:'tile',  anatomy:'hexgrid',     uniform:'plant',
+                           rotation:{ y:0.04, x:0.0,  z:0.0  }, signature:'streaming' };
+    if (s === 11) return { id:'sponge',   count:300, morph:1, swim:0, label:'Schwamm',    shape: shapeSchwamm,       naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pores',       uniform:true,
+                           rotation:{ y:0.10, x:0.04, z:0.0  }, signature:'filter' };
+    if (s === 12) return { id:'hydra',    count:280, morph:1, swim:0, label:'Hydra',      shape: shapeHydra,         animate: animateHydraTentacles, naturalRadius: 7.0, cellScaleHint:'micro', anatomy:'hydrafoot', uniform:true,
+                           rotation:{ y:0.08, x:0.0,  z:0.0  }, signature:'wave' };
+
+    // -- Fallback: existing cluster→organism progression for stages 13–30 --
     const t = (s - 1) / 29;
     const budget = Math.max(64, Math.floor(MAX_INSTANCES * qualityScale));
     const count = Math.max(1, Math.round(Math.pow(t, 1.6) * budget + (1 - t) * 1));
     const morph = THREE.MathUtils.clamp((s - 16) / 7, 0, 1);
     const swim  = THREE.MathUtils.clamp((s - 22) / 8, 0, 1);
-    let label = 'Zellulär';
-    if (s >= 13 && s < 19) label = 'Mehrzeller';
-    else if (s >= 19 && s < 23) label = 'Wirbeltier';
+    let label = 'Mehrzeller';
+    if (s >= 19 && s < 23) label = 'Wirbeltier';
     else if (s >= 23) label = 'Transzendent';
     return { id:'organism:'+s, count, morph, swim, label, shape: shapeRandomLifeform, naturalRadius: null, cellScaleHint:'auto', anatomy:'none' };
 }
@@ -1949,6 +2002,153 @@ function shapeParamecium(arr, count) {
     }
 }
 
+// ===== Iteration 3 shape generators (zellulär, stages 10-12) ==============
+
+function shapePflanzenzelle(arr, count) {
+    // Honeycomb tissue: cells arranged on a hexagonal grid in the XY plane,
+    // with chloroplast-style "organ" cells (set via uniform:'plant' below)
+    // sprinkled inside each tile. The slight Z jitter gives volume so the
+    // ShaderMaterial's fresnel still has something to lift.
+    //
+    // Plant-cell layout — index pattern matters because the uniform='plant'
+    // policy in applyShape colours every 4th-ish index as chloroplast.
+    const cols = 11, rows = 9;
+    const spacing = 1.55;
+    const dx = spacing;
+    const dy = spacing * Math.sqrt(3) / 2;
+    let i = 0;
+    for (let r = 0; r < rows && i < count; r++) {
+        const yPos = (r - (rows - 1) / 2) * dy;
+        const xOffset = (r & 1) ? dx / 2 : 0;
+        // Trim row width so the grid reads as roughly hexagonal (not boxy).
+        const trim = Math.abs(r - (rows - 1) / 2) >= 3 ? 1 : 0;
+        for (let c = trim; c < cols - trim && i < count; c++) {
+            const xPos = (c - (cols - 1) / 2) * dx + xOffset;
+            // Small deterministic jitter — keeps the grid from looking
+            // mechanical without dropping the honeycomb readability.
+            const jx = Math.sin(i * 12.9898) * 0.12;
+            const jy = Math.cos(i * 78.233) * 0.12;
+            const jz = Math.sin(i * 39.346) * 0.6;
+            arr[i*3]     = xPos + jx;
+            arr[i*3 + 1] = yPos + jy;
+            arr[i*3 + 2] = jz;
+            i++;
+        }
+    }
+    // Pack any leftover instances as inner chloroplasts (random within the
+    // tissue radius). Should be rare with the grid sized for ~240.
+    while (i < count) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * 4.5;
+        arr[i*3]     = Math.cos(a) * r;
+        arr[i*3 + 1] = Math.sin(a) * r;
+        arr[i*3 + 2] = (Math.random() - 0.5) * 1.5;
+        i++;
+    }
+}
+
+function shapeSchwamm(arr, count) {
+    // Porous sphere: Fibonacci-sphere with cells removed where deterministic
+    // noise exceeds a threshold — the gaps are the sponge's oscula. We need
+    // to keep filling spec.count, so each rejected sample replaces with an
+    // interior point (rim of an osculum looking inward).
+    const r = 4.5;
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    let i = 0, idx = 0, attempts = 0;
+    while (i < count && attempts < count * 4) {
+        const y = 1 - ((idx % (count + 64)) / (count + 64)) * 2;
+        const cr = Math.sqrt(Math.max(0, 1 - y*y));
+        const th = phi * idx;
+        idx++; attempts++;
+        // Deterministic noise — same threshold creates the same holes every
+        // time the shape re-applies, so it doesn't "shimmer" between frames.
+        const n = Math.sin(idx * 3.13) * 0.5 + Math.sin(idx * 7.7) * 0.5;
+        if (n > 0.55) continue; // pore
+        arr[i*3]     = Math.cos(th) * cr * r;
+        arr[i*3 + 1] = y * r;
+        arr[i*3 + 2] = Math.sin(th) * cr * r;
+        i++;
+    }
+    while (i < count) { arr[i*3] = arr[i*3+1] = arr[i*3+2] = 0; i++; }
+}
+
+function shapeHydra(arr, count) {
+    // Tubular body (cylinder) + 6 radial tentacles extending from the top.
+    // Tentacle cells get rewritten by animateHydraTentacles each frame so
+    // they wave like in water. Body cells stay put.
+    const TENT = 6;
+    const bodyFrac = 0.55;
+    const bodyCount = Math.floor(count * bodyFrac);
+    const tentCount = count - bodyCount;
+    const perTent = Math.floor(tentCount / TENT);
+    const extra = tentCount - perTent * TENT;
+    const bodyLen = 8.0;
+    const bodyR = 1.6;
+    // Body: spread instances across the cylinder surface deterministically.
+    for (let i = 0; i < bodyCount; i++) {
+        const u = bodyCount > 1 ? i / (bodyCount - 1) : 0.5;
+        const ang = (i * 2.39996323) % (Math.PI * 2); // golden-angle wrap
+        const y = (u - 0.5) * bodyLen;
+        // Slight bulge at midsection so it doesn't read as a perfect tube.
+        const bulge = 1.0 + 0.25 * Math.sin(u * Math.PI);
+        arr[i*3]     = Math.sin(ang) * bodyR * bulge;
+        arr[i*3 + 1] = y;
+        arr[i*3 + 2] = Math.cos(ang) * bodyR * bulge;
+    }
+    // Tentacle seed positions — straight out the top, perpendicular to body.
+    let idx = bodyCount;
+    for (let t = 0; t < TENT; t++) {
+        const baseAng = (t / TENT) * Math.PI * 2;
+        const n = perTent + (t < extra ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+            const u = (k + 1) / n;
+            const reach = bodyR + u * 4.5;
+            arr[idx*3]     = Math.sin(baseAng) * reach;
+            arr[idx*3 + 1] = bodyLen / 2 + u * 1.2;
+            arr[idx*3 + 2] = Math.cos(baseAng) * reach;
+            idx++;
+        }
+    }
+    arr._hydraTentStart = bodyCount;
+    arr._hydraTents = TENT;
+    arr._hydraPerTent = perTent;
+    arr._hydraExtra = extra;
+    arr._hydraBodyLen = bodyLen;
+    arr._hydraBodyR = bodyR;
+}
+
+function animateHydraTentacles(arr, count, time) {
+    const start = arr._hydraTentStart || 0;
+    const TENT = arr._hydraTents || 6;
+    const perTent = arr._hydraPerTent || 0;
+    const extra = arr._hydraExtra || 0;
+    const bodyLen = arr._hydraBodyLen || 8;
+    const bodyR = arr._hydraBodyR || 1.6;
+    let idx = start;
+    for (let t = 0; t < TENT; t++) {
+        const baseAng = (t / TENT) * Math.PI * 2;
+        // Each tentacle has its own phase — coordinated but not synchronised.
+        const phase = time * 1.1 + t * 0.9;
+        const n = perTent + (t < extra ? 1 : 0);
+        for (let k = 0; k < n; k++) {
+            const u = (k + 1) / n;
+            const reach = bodyR + u * 4.5;
+            // Wave amplitude grows toward tentacle tip.
+            const wave = Math.sin(phase + u * 3.2) * 0.8 * u;
+            // Perpendicular direction in the XZ plane for the lateral wave.
+            const perpAng = baseAng + Math.PI / 2;
+            const x = Math.sin(baseAng) * reach + Math.sin(perpAng) * wave;
+            const z = Math.cos(baseAng) * reach + Math.cos(perpAng) * wave;
+            // Tentacles also bob up/down a touch — different freq for life.
+            const y = bodyLen / 2 + u * 1.2 + Math.sin(phase * 0.7 + u * 2.0) * 0.35 * u;
+            arr[idx*3]     = x;
+            arr[idx*3 + 1] = y;
+            arr[idx*3 + 2] = z;
+            idx++;
+        }
+    }
+}
+
 function shapeRandomLifeform(arr, count) {
     // The original "stylised nematode / bärtierchen" used by the cluster→
     // organism morph for stages without a dedicated shape yet.
@@ -2239,6 +2439,15 @@ function applyShape(spec) {
             const v = (i < capsidCount) ? 0 : 1;
             if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
         }
+    } else if (spec.uniform === 'plant') {
+        // Plant tissue: ~1 in 5 cells = chloroplast (organ/yellow-green).
+        // Pattern is deterministic so the same chloroplasts light up each
+        // run, giving the tissue a recognisable repeated motif.
+        for (let i = 0; i < spec.count; i++) {
+            const r = Math.sin(i * 9.371) * Math.cos(i * 4.123);
+            const v = (r > 0.35) ? 1 : 0;
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
     } else {
         for (let i = 0; i < spec.count; i++) {
             const r = Math.sin(i * 17.731) * 43758.5453;
@@ -2324,6 +2533,49 @@ function applyAnatomy(spec) {
             parts.push(`<circle class="pseudopod-hint" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="10"/>`);
         }
         markup = parts.join('');
+    } else if (want === 'hexgrid') {
+        // Stage 10 Pflanzenzelle — honeycomb cell-wall outlines drawn on
+        // top of the 3D tissue. Two hex rings + a central hexagon read as
+        // "rigid plant wall" without competing with the 3D depth.
+        const parts = [];
+        const hex = (cx, cy, r, opa) => {
+            const pts = [];
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+                pts.push((cx + Math.cos(a)*r).toFixed(1) + ',' + (cy + Math.sin(a)*r).toFixed(1));
+            }
+            return `<polygon class="hex-wall" points="${pts.join(' ')}" opacity="${opa}"/>`;
+        };
+        parts.push(hex(0, 0, 22, 0.85));
+        const ringR = 38;
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+            parts.push(hex(Math.cos(a) * ringR, Math.sin(a) * ringR, 22, 0.55));
+        }
+        markup = parts.join('');
+    } else if (want === 'pores') {
+        // Stage 11 Schwamm — a handful of oscula (large pores) drawn as
+        // breathing circles. The pulse animation timing matches the
+        // 'filter' signature on the 3D side so the inhale/exhale rhythm
+        // reads across both layers.
+        const N = 5;
+        const parts = [];
+        for (let i = 0; i < N; i++) {
+            const a = (i / N) * Math.PI * 2 + 0.3;
+            const r = 42;
+            const cx = Math.cos(a) * r;
+            const cy = Math.sin(a) * r;
+            const delay = ((i / N) * 0.6).toFixed(2);
+            parts.push(`<circle class="osculum" style="--ox:${cx.toFixed(1)};--oy:${cy.toFixed(1)};--delay:${delay}s" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="8"/>`);
+        }
+        markup = parts.join('');
+    } else if (want === 'hydrafoot') {
+        // Stage 12 Hydra — basal disc at the bottom of the body. Hydra
+        // anchor themselves with a sticky foot; the disc gives the creature
+        // a "stand" so it doesn't visually float.
+        markup = ''
+          + '<ellipse class="hydra-disc" cx="0" cy="78" rx="22" ry="6" opacity="0.6"/>'
+          + '<ellipse class="hydra-disc" cx="0" cy="78" rx="14" ry="3" opacity="0.85"/>';
     }
     svg.innerHTML = markup;
 }
@@ -2353,6 +2605,11 @@ function layoutCluster(count) {
         // small enough that ~200 cells still feel like discrete organelles
         // rather than one blob.
         cellScale = 0.95;
+    } else if (hint === 'tile') {
+        // Tissue-grid layouts (plant cells, sponge): each instance is its
+        // own visible tile, so we want them slightly larger than micro to
+        // suggest fused cell walls.
+        cellScale = 1.15;
     } else {
         const sLerp = Math.min(1, Math.log10(Math.max(1, count)) / 2.4);
         cellScale = 5.0 * (1 - sLerp) + 1.0 * sLerp;
@@ -2599,6 +2856,23 @@ const BioNexus = {
             signatureOffset.x = Math.sin(time * 0.6) * 1.5;
             signatureOffset.y = Math.sin(time * 0.4) * 0.3;
             pulseTarget = 0;
+        } else if (sig === 'streaming') {
+            // Stage 10 Pflanzenzelle — cytoplasmic streaming. Slow rolling
+            // breath (cells "transpire") with a faster, fainter overtone for
+            // the chloroplast-cells lit by the existing organ-pulse term.
+            const slow = 0.5 + 0.5 * Math.sin(time * 0.45);
+            pulseTarget = slow * 0.55;
+        } else if (sig === 'filter') {
+            // Stage 11 Schwamm — water-filter inhale/exhale through the
+            // oscula. Asymmetric: long inhale (intake), short pulse out.
+            const phase = (time * 0.4) % (Math.PI * 2);
+            const exhale = Math.exp(-Math.pow((phase - Math.PI), 2) * 4); // sharp pulse at π
+            pulseTarget = 0.25 + exhale * 0.7;
+        } else if (sig === 'wave') {
+            // Stage 12 Hydra — the tentacle wave (per-frame animate) is the
+            // hero. Body adds a slow sway pulse so the whole creature feels
+            // like it's gently breathing while the arms drift.
+            pulseTarget = 0.3 + 0.2 * Math.sin(time * 0.7);
         }
         // Lerp the body-pulse uniform smoothly so changes between stages
         // ease in (avoids a "pop" the instant the signature changes).
