@@ -71,14 +71,17 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            min-width: 0;
         }
         .stat {
             text-align: right;
             line-height: 1.1;
             min-width: 50px;
+            max-width: 120px;
+            overflow: hidden;
         }
         .stat-label { color: var(--text-dim); font-size: 0.55rem; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-value { color: var(--text); font-weight: 800; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+        .stat-value { color: var(--text); font-weight: 800; font-size: 0.95rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .stat-value.accent { color: var(--accent); }
 
         /* ===== MAIN AREA ===== */
@@ -150,8 +153,13 @@
             letter-spacing: 1px;
             text-transform: uppercase;
             margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 6px;
         }
         .stage-name b { color: var(--accent); font-weight: 800; }
+        .stage-name span { color: var(--text-dim); }
         .progress {
             height: 5px;
             background: rgba(255,255,255,0.06);
@@ -204,20 +212,20 @@
         .ring.r2 { width: 100%; height: 100%; animation: rot 50s linear infinite reverse; }
         @keyframes rot { from{transform:rotate(0)} to{transform:rotate(360deg)} }
 
-        /* Biomass / phase pill — sits as a chip inside the top of the cell
-           frame so it acts as a label for the organism without colliding
-           with the click-info row below the stage. */
+        /* Biomass / phase pill — chip at the BOTTOM of the cell frame to avoid
+           the stage-progress bar overlapping at the top on narrow screens. */
         .bio-hud {
             position: absolute;
             left: 50%;
-            top: 10px;
+            bottom: 8px;
+            top: auto;
             transform: translateX(-50%);
             display: flex; align-items: center; gap: 8px;
-            font-size: 0.6rem;
+            font-size: 0.58rem;
             text-transform: uppercase;
-            letter-spacing: 1.4px;
+            letter-spacing: 1.3px;
             color: var(--text-dim);
-            background: rgba(8,11,20,0.68);
+            background: rgba(8,11,20,0.7);
             border: 1px solid rgba(0,255,163,0.22);
             border-radius: 99px;
             padding: 4px 10px;
@@ -226,6 +234,9 @@
             white-space: nowrap;
             pointer-events: none;
             z-index: 4;
+            max-width: 80%;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .bio-hud .dot {
             width: 6px; height: 6px; border-radius: 50%;
@@ -289,43 +300,53 @@
             100% { transform: translate(-50%, -50%) translate(var(--bx,0), var(--by,0)) scale(0); opacity:0; }
         }
 
-        /* Combo badge */
+        /* Combo badge — pinned to the right edge of the cell stage so it
+           never overlaps the Biomasse pill (top center) or the stage bar
+           (above). Only shown for manual clicks. */
         .combo {
             position: absolute;
-            top: 8px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(255,93,162,0.18), rgba(255,210,74,0.15));
-            border: 1px solid rgba(255,93,162,0.4);
-            border-radius: 99px;
-            padding: 4px 14px;
-            font-size: 0.78rem;
+            top: 50%;
+            right: -6px;
+            transform: translate(0, -50%) scale(0.6);
+            transform-origin: right center;
+            background: linear-gradient(135deg, rgba(255,93,162,0.22), rgba(255,210,74,0.16));
+            border: 1px solid rgba(255,93,162,0.45);
+            border-radius: 10px 0 0 10px;
+            padding: 6px 10px 6px 12px;
+            font-size: 0.72rem;
             font-weight: 800;
             color: var(--crit);
-            text-shadow: 0 0 8px rgba(255,93,162,0.5);
+            text-shadow: 0 0 8px rgba(255,93,162,0.45);
             white-space: nowrap;
             z-index: 4;
-            display: none;
+            opacity: 0;
+            pointer-events: none;
             backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            box-shadow: 0 6px 18px -8px rgba(255,93,162,0.5);
+            transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+            min-width: 78px;
+            text-align: right;
         }
-        .combo.active { display: block; animation: comboIn 0.25s ease-out; }
-        @keyframes comboIn { from{transform:translateX(-50%) scale(0.6);opacity:0} to{transform:translateX(-50%) scale(1);opacity:1} }
+        .combo.active { opacity: 1; transform: translate(0, -50%) scale(1); }
+        .combo small { display: block; font-size: 0.52rem; color: var(--text-dim); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
         .combo-bar {
             position: absolute;
-            bottom: -4px;
-            left: 10%;
-            width: 80%;
+            left: 0; right: 0; bottom: 0;
             height: 2px;
             background: rgba(255,255,255,0.08);
-            border-radius: 99px;
+            border-bottom-left-radius: 10px;
             overflow: hidden;
         }
         .combo-bar-fill {
             height: 100%;
             background: var(--crit);
-            border-radius: 99px;
             width: 100%;
             transition: width 0.1s linear;
+        }
+        /* On very narrow viewports the combo can clip the cell — tuck it tighter. */
+        @media (max-width: 360px) {
+            .combo { font-size: 0.66rem; padding: 5px 8px; min-width: 64px; right: -4px; }
         }
 
         /* Golden cell bonus */
@@ -349,15 +370,20 @@
         }
         @keyframes goldenAppear { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
 
-        /* Click info */
+        /* Click info — clamped width so very long click-value numbers stay on
+           one line and don't push the cell off-center. */
         .click-info {
             text-align: center;
             margin-top: 4px;
             z-index: 1;
             font-size: 0.7rem;
             color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 92vw;
         }
-        .click-info b { color: var(--accent); font-weight: 800; font-size: 0.9rem; }
+        .click-info b { color: var(--accent); font-weight: 800; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 
         /* ===== TABS ===== */
         .tabs {
@@ -480,9 +506,12 @@
         .upg-info { flex: 1; min-width: 0; }
         .upg-name { font-weight: 700; color: var(--text); font-size: 0.82rem; line-height: 1.2; }
         .upg-desc { font-size: 0.65rem; color: var(--text-dim); margin-top: 2px; line-height: 1.2; }
-        .upg-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; flex-wrap: wrap; }
+        .upg-meta { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; color: var(--text-dim); margin-top: 3px; flex-wrap: wrap; min-width: 0; }
         .upg-meta .mult { color: var(--gold); font-weight: 800; }
-        .upg-meta .milestone-tip { color: var(--accent-2); font-weight: 700; opacity: 0.85; }
+        .upg-meta .milestone-tip { color: var(--accent-2); font-weight: 700; opacity: 0.85; white-space: nowrap; }
+        .upg-meta > span:empty { display: none; }
+        .upg-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .upg-desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .upg-right {
             text-align: right; flex-shrink: 0;
             display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
@@ -630,50 +659,71 @@
         }
         .popup-btn:active { transform: scale(0.95); }
 
-        /* Toast (achievement unlock) */
+        /* Toast (achievement unlock) — pinned just ABOVE the abilities bar so
+           it never covers the stage-progress text at the top (the friend's
+           screenshot showed two milestone toasts sitting right on the
+           "VIRUS · ... BIS PROKARYOT" line). The wrap stacks oldest-on-top
+           via column-reverse so newer messages appear closest to the bar. */
         .toast-wrap {
             position: fixed;
-            top: max(60px, env(safe-area-inset-top));
+            bottom: calc(170px + env(safe-area-inset-bottom));
             left: 50%;
             transform: translateX(-50%);
             z-index: 900;
-            display: flex; flex-direction: column; gap: 8px;
+            display: flex; flex-direction: column-reverse; gap: 6px;
             pointer-events: none;
+            width: max-content;
+            max-width: 92vw;
         }
         .toast {
-            background: linear-gradient(135deg, rgba(255,210,74,0.15), rgba(0,255,163,0.1));
+            background: linear-gradient(135deg, rgba(255,210,74,0.16), rgba(0,255,163,0.10));
             border: 1px solid rgba(255,210,74,0.4);
-            border-radius: 12px;
-            padding: 10px 14px;
-            display: flex; align-items: center; gap: 10px;
+            border-radius: 10px;
+            padding: 8px 12px;
+            display: flex; align-items: center; gap: 8px;
             color: var(--text);
-            font-size: 0.8rem;
+            font-size: 0.74rem;
             font-weight: 600;
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             box-shadow: 0 6px 20px rgba(0,0,0,0.4);
             animation: toastIn 0.3s ease, toastOut 0.4s ease 3.6s forwards;
             white-space: nowrap;
-            max-width: 90vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 92vw;
         }
         .toast .ic { font-size: 1.2rem; }
-        @keyframes toastIn { from{transform:translateY(-20px);opacity:0} to{transform:translateY(0);opacity:1} }
-        @keyframes toastOut { to{transform:translateY(-20px);opacity:0} }
+        @keyframes toastIn { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes toastOut { to{transform:translateY(20px);opacity:0} }
+        /* On taller viewports raise the toast stack so it doesn't crowd the
+           panel content the player is reading. */
+        @media (min-height: 760px) { .toast-wrap { bottom: calc(200px + env(safe-area-inset-bottom)); } }
+        @media (prefers-reduced-motion: reduce) {
+            .toast { animation-duration: 0.001ms, 0.001ms; }
+        }
 
-        /* Mutation bar */
+        /* Mutation bar — sits between the stage-progress and the cell, full
+           width with ellipsis so long descriptions don't punch out of the
+           viewport on narrow screens. */
         .mutation {
-            position: absolute;
-            top: 0; left: 50%; transform: translateX(-50%);
+            position: relative;
+            margin: 4px auto 0;
+            max-width: min(330px, 86vw);
             background: linear-gradient(135deg, rgba(255,93,162,0.18), rgba(79,209,255,0.12));
             border: 1px solid rgba(255,93,162,0.4);
-            border-radius: 0 0 12px 12px;
+            border-radius: 10px;
             padding: 6px 14px;
-            font-size: 0.72rem;
+            font-size: 0.7rem;
             font-weight: 700;
             color: var(--text);
             display: none;
             z-index: 6;
             backdrop-filter: blur(8px);
+            text-align: center;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .mutation.on { display: block; animation: toastIn 0.3s ease; }
         .mutation b { color: var(--crit); }
@@ -687,7 +737,11 @@
             border-top: 1px solid var(--line);
             backdrop-filter: blur(14px);
             justify-content: center;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
         }
+        .abilities::-webkit-scrollbar { display: none; }
         .ability {
             position: relative;
             flex: 1;
@@ -1011,7 +1065,89 @@
         @media (prefers-reduced-motion: reduce) {
             .ripple-fx, .ability.ready .ab-icon.ui-icon { animation: none !important; }
             .tab::after { transition: none; }
+            .ring { animation: none !important; }
+            .logo-dot, .bio-hud .dot { animation: none !important; }
+            .float-text, .ripple, .burst { animation-duration: 0.001ms !important; }
+            .ambient-particles { display: none !important; }
         }
+        /* Quality preset = "low" disables ambient particles + parallax. Toggled by JS via body class. */
+        body.qp-low .ambient-particles { display: none !important; }
+        body.qp-low .ring { animation: none !important; }
+        body.qp-low .float-text { animation-duration: 0.4s !important; }
+        body.qp-low .burst { display: none; }
+        /* "Paused" state: dim the cell stage so it's visually obvious. */
+        body.paused .cell-stage { filter: grayscale(0.7) brightness(0.55); pointer-events: none; }
+        body.paused .ambient-particles { opacity: 0.25; }
+        body.paused #abilitiesBar .ability { pointer-events: none; opacity: 0.5; }
+
+        /* Performance + Save card buttons grid. */
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .btn-grid .card-btn { display: block; width: 100%; padding: 8px 10px; font-size: 0.74rem; }
+        .seg-control {
+            display: flex; gap: 0;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--line);
+            border-radius: 99px;
+            padding: 2px;
+            margin: 6px 0 4px;
+        }
+        .seg-control button {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.66rem; font-weight: 700;
+            padding: 5px 6px;
+            border-radius: 99px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .seg-control button.active {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #001a10;
+            box-shadow: 0 4px 14px -4px rgba(0,255,163,0.5);
+        }
+        #fpsHud {
+            position: fixed;
+            top: max(8px, env(safe-area-inset-top));
+            left: 8px;
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            background: rgba(8,11,20,0.6);
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-variant-numeric: tabular-nums;
+            z-index: 800;
+            pointer-events: none;
+            display: none;
+        }
+        #fpsHud.on { display: block; }
+        #pausedBanner {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(8,11,20,0.85);
+            border: 1px solid rgba(255,210,74,0.5);
+            color: var(--gold);
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            z-index: 950;
+            display: none;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+        }
+        body.paused #pausedBanner { display: block; }
     </style>
 </head>
 <body>
@@ -1094,6 +1230,9 @@
 </svg>
 
 
+<div id="pausedBanner">⏸ Pausiert · tippe „Fortsetzen" im Meta-Tab</div>
+<div id="fpsHud">— fps</div>
+
 <div class="header">
     <div class="logo"><span class="logo-dot"></span> EVOLUTION</div>
     <div class="stats">
@@ -1119,8 +1258,8 @@
         <!-- BioNexus: live 3D morphogenesis scene scoped to this container.
              Replaces the SVG cell — phase machine is driven by game.stage. -->
         <canvas id="cellCanvas" aria-label="Cellular morphogenesis"></canvas>
-        <div class="combo" id="combo">
-            COMBO ×<span id="comboMult">1.0</span>
+        <div class="combo" id="combo" aria-live="polite">
+            <small>Combo</small>×<span id="comboMult">1.0</span>
             <div class="combo-bar"><div class="combo-bar-fill" id="comboFill"></div></div>
         </div>
         <div class="fx-layer" id="fxLayer"></div>
@@ -1222,10 +1361,34 @@
     </div>
 
     <div class="card">
+        <h3>⚙️ Performance</h3>
+        <p>Falls der Browser einfriert oder ruckelt — schalte die Qualität herunter. „Auto" wählt anhand der gemessenen FPS.</p>
+        <div class="row"><span>Qualität</span><span id="qpLabel">Auto</span></div>
+        <div class="seg-control" id="qpSelect">
+            <button data-qp="auto" class="active">Auto</button>
+            <button data-qp="low">Low</button>
+            <button data-qp="mid">Mid</button>
+            <button data-qp="high">High</button>
+        </div>
+        <div class="row"><span>FPS-Anzeige</span><span><button class="card-btn" id="fpsBtn" onclick="toggleFpsHud()">Aus</button></span></div>
+        <div class="row"><span>Spiel-Status</span><span><button class="card-btn" id="pauseBtn" onclick="togglePause()">Pausieren</button></span></div>
+    </div>
+
+    <div class="card">
+        <h3>💾 Speicherstand</h3>
+        <p>Sicherheitskopie als Text — speichere ihn lokal, bevor du etwas Riskantes tust.</p>
+        <div class="btn-grid">
+            <button class="card-btn" onclick="exportSave()">Export</button>
+            <button class="card-btn" onclick="importSavePrompt()">Import</button>
+        </div>
+        <p style="margin-top:6px;font-size:0.66rem;">Auto-Backup im Browser: alle 15 s.</p>
+    </div>
+
+    <div class="card">
         <h3>🔊 Einstellungen</h3>
         <div class="row"><span>Sound-Effekte</span><span><button class="card-btn" id="soundBtn" onclick="toggleSound()">An</button></span></div>
         <div class="row"><span>Vibration</span><span><button class="card-btn" id="hapticBtn" onclick="toggleHaptic()">An</button></span></div>
-        <p style="margin-top:10px;">Hard Reset löscht <b>alle</b> Daten.</p>
+        <p style="margin-top:10px;">Hard Reset löscht <b>alle</b> Daten — vorher exportieren!</p>
         <button class="card-btn danger" onclick="hardReset()">Hard Reset</button>
     </div>
 </div>
@@ -1271,7 +1434,14 @@
 <script type="module">
 import * as THREE from 'three';
 
-const MAX_INSTANCES = 4000; // hard cap; mobile-safe for a ~290px canvas
+// Adaptive instance cap. Low-core devices get a tighter ceiling so the scene
+// stays interactive even when the cluster reaches full population. The runtime
+// quality preset (set from the Meta tab) further scales this — see setQuality().
+const CORES = (navigator.hardwareConcurrency || 4);
+const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+const MAX_INSTANCES_BUDGET = (CORES <= 4 || MOBILE_UA) ? 1500 : 4000;
+let qualityScale = 1.0; // adjusted by window.BioNexus.setQualityScale()
+const MAX_INSTANCES = MAX_INSTANCES_BUDGET; // hard-cap allocated up front
 const PALETTE = {
     membrane: new THREE.Color('#00ffa3'), // game accent green
     organ:    new THREE.Color('#ffd24a'), // game gold (was pink in reference — recolored for brand cohesion)
@@ -1286,7 +1456,8 @@ function stageToTargets(stage) {
     const s = Math.max(1, Math.min(30, stage));
     // smooth count curve: 1 cell at stage 1, ~MAX at stage 30
     const t = (s - 1) / 29;
-    const count = Math.max(1, Math.round(Math.pow(t, 1.6) * MAX_INSTANCES + (1 - t) * 1));
+    const budget = Math.max(64, Math.floor(MAX_INSTANCES * qualityScale));
+    const count = Math.max(1, Math.round(Math.pow(t, 1.6) * budget + (1 - t) * 1));
     // morph value: SVG-like cluster until stage 16, then morph to organism by stage 23.
     const morph = THREE.MathUtils.clamp((s - 16) / 7, 0, 1);
     // swim speed ramps in after morphogenesis completes.
@@ -1435,9 +1606,21 @@ void main() {
 }`;
 
 const canvas = document.getElementById('cellCanvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: !(MOBILE_UA || CORES <= 4),
+    alpha: true,
+    powerPreference: 'high-performance',
+});
+const BASE_DPR = Math.min(window.devicePixelRatio || 1, MOBILE_UA ? 1.0 : 1.5);
+renderer.setPixelRatio(BASE_DPR);
 renderer.setClearColor(0x000000, 0);
+// Lost-context recovery: WebGL contexts can be killed by the OS (especially
+// on low-end devices). Without these hooks, the canvas freezes silently and
+// the user thinks the page crashed. Now we suspend the loop, then resume.
+let contextLost = false;
+canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); contextLost = true; }, false);
+canvas.addEventListener('webglcontextrestored', () => { contextLost = false; resize(); }, false);
 
 const scene = new THREE.Scene();
 // Wider FOV + dynamic camera dolly (see BioNexus.update). The dolly chases a
@@ -1600,7 +1783,18 @@ resize();
 
 // --- Public API ------------------------------------------------------------
 let lastStageApplied = 1;
+let bioPaused = false;
 const BioNexus = {
+    setQualityScale(s) {
+        qualityScale = Math.max(0.1, Math.min(1.0, s));
+        // Recompute target count with the new budget.
+        targets = stageToTargets(lastStageApplied);
+    },
+    setPixelRatioScale(s) {
+        renderer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
+        resize();
+    },
+    setPaused(p) { bioPaused = !!p; },
     setStage(stage) {
         targets = stageToTargets(stage);
         cellMat.uniforms.morph.value = targets.morph;
@@ -1637,6 +1831,7 @@ const BioNexus = {
     },
 
     update(dtMs) {
+        if (bioPaused || contextLost) return;
         const dt = dtMs / 1000;
         const time = performance.now() * 0.001;
         cellMat.uniforms.time.value = time;
@@ -1970,13 +2165,14 @@ function useAbility(id) {
         const step = Math.max(50, a.dur / total);
         for (let i = 0; i < total; i++) {
             setTimeout(() => {
+                if (gamePaused) return;
                 const stage = document.getElementById('cellStage');
                 const r = stage.getBoundingClientRect();
                 const fakeE = {
                     clientX: r.left + r.width/2 + (Math.random()-0.5)*r.width*0.6,
                     clientY: r.top + r.height/2 + (Math.random()-0.5)*r.height*0.6,
                 };
-                clickCell(fakeE);
+                clickCell(fakeE, { isAuto: true });
             }, i * step);
         }
     }
@@ -2118,7 +2314,13 @@ function nextMilestone(c) {
     return null;
 }
 function crossedMilestone(prev, next) {
-    return MILESTONES.find(t => prev < t && next >= t) || null;
+    // Returns the HIGHEST milestone crossed by this purchase. A Max-Buy that
+    // jumps 0→30 should celebrate the 25-tier doubling, not the 10-tier one.
+    let hit = null;
+    for (const t of MILESTONES) {
+        if (prev < t && next >= t) hit = t;
+    }
+    return hit;
 }
 
 // Bulk cost helper
@@ -2381,7 +2583,17 @@ function addDna(amount) {
     game.lifetimeDna += amount;
 }
 
-function clickCell(e) {
+// Auto-click rate tracker — used to throttle FX so the DOM doesn't fill up
+// when the auto-clicker is running at 25 cps. Without this, a high-level
+// auto-clicker spawns ~200 FX nodes per second which is what caused the
+// browser to lock up.
+let autoClickFxBudget = 0;
+let autoClickFxLastRefill = 0;
+const AUTOCLICK_FX_PER_SEC = 6; // budget; FX show only this many auto-clicks per second
+
+function clickCell(e, opts) {
+    if (gamePaused) return;
+    const isAuto = !!(opts && opts.isAuto);
     const stage = document.getElementById('cellStage');
     const rect = stage.getBoundingClientRect();
     let cx, cy;
@@ -2393,15 +2605,22 @@ function clickCell(e) {
     const localX = ((cx - rect.left) / rect.width - 0.5) * 300;
     const localY = ((cy - rect.top) / rect.height - 0.5) * 300;
 
-    // Combo
+    // Combo — manual clicks only. Auto-clicker / Frenzy / golden-cells must
+    // never inflate the combo, otherwise the combo bonus turns into a passive
+    // multiplier that the player doesn't earn. (Design rule confirmed from
+    // docs/01-game-pillars.md Pillar 2 — "Player-Agency, keine versteckten
+    // Multiplier".)
     const now = Date.now();
-    if (now - comboLastTime < getComboTimeWindow()) {
-        comboCount = Math.min(60, comboCount + 1);
-    } else {
-        comboCount = 1;
+    let comboMult = 1;
+    if (!isAuto) {
+        if (now - comboLastTime < getComboTimeWindow()) {
+            comboCount = Math.min(60, comboCount + 1);
+        } else {
+            comboCount = 1;
+        }
+        comboLastTime = now;
+        comboMult = getComboMultiplier();
     }
-    comboLastTime = now;
-    const comboMult = getComboMultiplier();
 
     // Crit
     const isCrit = Math.random() < getCritChance();
@@ -2410,24 +2629,67 @@ function clickCell(e) {
 
     const gain = game.clickPower * comboMult * critMult;
     addDna(gain);
-    game.totalClicks++;
+    if (!isAuto) game.totalClicks++;
 
-    // Sound + haptic
-    if (isCrit) { sndCrit(); vibrate(30); }
-    else { sndClick(); vibrate(8); }
+    // Audio + haptic only for player clicks (auto-clicks would be a sonic
+    // jackhammer at 25 cps).
+    if (!isAuto) {
+        if (isCrit) { sndCrit(); vibrate(30); }
+        else { sndClick(); vibrate(8); }
+    }
 
-    // Visual feedback
+    // FX gating: refill budget every second; auto-clicks consume it.
+    let showFx = true;
+    if (isAuto) {
+        if (now - autoClickFxLastRefill > 1000) {
+            autoClickFxBudget = AUTOCLICK_FX_PER_SEC;
+            autoClickFxLastRefill = now;
+        }
+        if (autoClickFxBudget > 0) { autoClickFxBudget--; } else { showFx = false; }
+    }
+
+    // The 3D shockwave is cheap (single uniform update) — always run it so
+    // there's still feedback even when DOM FX are suppressed.
     applyImpulse(localX, localY, 12 + (isCrit ? 8 : 0));
-    spawnFloatText((isCrit ? 'CRIT +' : '+') + fmt(gain), cx, cy, isCrit ? 'crit' : null);
-    spawnRipple(cx, cy);
-    spawnBurst(cx, cy, isCrit ? 12 : 6);
+
+    if (showFx && !gameLowQuality) {
+        spawnFloatText((isCrit ? 'CRIT +' : '+') + fmt(gain), cx, cy, isCrit ? 'crit' : null);
+        spawnRipple(cx, cy);
+        spawnBurst(cx, cy, isCrit ? 12 : 6);
+    } else if (isCrit && showFx) {
+        // Even in low-quality mode, crit pop is worth showing.
+        spawnFloatText('CRIT +' + fmt(gain), cx, cy, 'crit');
+    }
 
     checkAchievements();
     saveSoon();
 }
 
+// FX pooling: each spawn type keeps a fixed-size queue of active nodes. When
+// the cap is hit, we recycle the oldest node instead of letting the DOM grow
+// unbounded. This is the main mitigation against the auto-clicker DOM-leak
+// that froze the browser previously.
+const FX_CAP = { float: 40, ripple: 20, burst: 80 };
+const _fxActive = { float: [], ripple: [], burst: [] };
+function _retire(kind) {
+    while (_fxActive[kind].length >= FX_CAP[kind]) {
+        const old = _fxActive[kind].shift();
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
+}
+function _pushFx(kind, el, ms) {
+    _retire(kind);
+    _fxActive[kind].push(el);
+    setTimeout(() => {
+        const i = _fxActive[kind].indexOf(el);
+        if (i !== -1) _fxActive[kind].splice(i, 1);
+        if (el.parentNode) el.parentNode.removeChild(el);
+    }, ms);
+}
+
 function spawnFloatText(text, x, y, cls) {
     const fx = document.getElementById('fxLayer');
+    if (!fx) return;
     const rect = fx.getBoundingClientRect();
     const el = document.createElement('div');
     el.className = 'float-text' + (cls ? ' ' + cls : '');
@@ -2435,22 +2697,27 @@ function spawnFloatText(text, x, y, cls) {
     el.style.left = (x - rect.left + (Math.random()-0.5)*20) + 'px';
     el.style.top = (y - rect.top - 10) + 'px';
     fx.appendChild(el);
-    setTimeout(() => el.remove(), 900);
+    _pushFx('float', el, 900);
 }
 function spawnRipple(x, y) {
     const fx = document.getElementById('fxLayer');
+    if (!fx) return;
     const rect = fx.getBoundingClientRect();
     const el = document.createElement('div');
     el.className = 'ripple';
     el.style.left = (x - rect.left) + 'px';
     el.style.top = (y - rect.top) + 'px';
     fx.appendChild(el);
-    setTimeout(() => el.remove(), 650);
+    _pushFx('ripple', el, 650);
 }
 function spawnBurst(x, y, count) {
     const fx = document.getElementById('fxLayer');
+    if (!fx) return;
     const rect = fx.getBoundingClientRect();
-    for (let i = 0; i < count; i++) {
+    // Cap how many particles we ever emit per call — combined with the global
+    // burst cap this hard-bounds the FX-layer cost.
+    const actual = Math.min(count, 12);
+    for (let i = 0; i < actual; i++) {
         const el = document.createElement('div');
         el.className = 'burst';
         el.style.left = (x - rect.left) + 'px';
@@ -2460,14 +2727,17 @@ function spawnBurst(x, y, count) {
         el.style.setProperty('--bx', Math.cos(angle) * dist + 'px');
         el.style.setProperty('--by', Math.sin(angle) * dist + 'px');
         fx.appendChild(el);
-        setTimeout(() => el.remove(), 600);
+        _pushFx('burst', el, 600);
     }
 }
 function confetti(x, y) {
+    if (gameLowQuality) return; // skip in low mode
     const fx = document.getElementById('fxLayer');
+    if (!fx) return;
     const rect = fx.getBoundingClientRect();
     const colors = ['#ffd24a', '#00ffa3', '#4fd1ff', '#ff5da2'];
-    for (let i = 0; i < 20; i++) {
+    const actual = Math.min(20, FX_CAP.burst - _fxActive.burst.length + 4);
+    for (let i = 0; i < Math.max(0, actual); i++) {
         const el = document.createElement('div');
         el.className = 'burst';
         el.style.background = colors[i % colors.length];
@@ -2479,7 +2749,7 @@ function confetti(x, y) {
         el.style.setProperty('--bx', Math.cos(angle) * dist + 'px');
         el.style.setProperty('--by', Math.sin(angle) * dist + 'px');
         fx.appendChild(el);
-        setTimeout(() => el.remove(), 600);
+        _pushFx('burst', el, 600);
     }
 }
 
@@ -2543,11 +2813,16 @@ function updateBadges() {
 }
 function toast(msg) {
     const wrap = document.getElementById('toastWrap');
+    if (!wrap) return;
+    // Cap concurrent toasts. A burst (Max-Buy across multiple tiers or many
+    // achievements unlocking at once) used to pile messages on top of the
+    // stage info — visible in the friend's crash screenshot.
+    while (wrap.children.length >= 3) wrap.removeChild(wrap.firstChild);
     const t = document.createElement('div');
     t.className = 'toast';
     t.textContent = msg;
     wrap.appendChild(t);
-    setTimeout(() => t.remove(), 4000);
+    setTimeout(() => { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
 }
 
 // =============================== UPGRADES ===================================
@@ -2674,6 +2949,7 @@ function setupAutoClicker() {
     const lvl = autoClickerLevels[game.autoClickerLevel - 1];
     if (lvl) {
         autoClickerInt = setInterval(() => {
+            if (gamePaused) return;
             // Simulate a click at center
             const stage = document.getElementById('cellStage');
             const r = stage.getBoundingClientRect();
@@ -2681,7 +2957,7 @@ function setupAutoClicker() {
                 clientX: r.left + r.width/2 + (Math.random()-0.5)*60,
                 clientY: r.top + r.height/2 + (Math.random()-0.5)*60
             };
-            clickCell(fake);
+            clickCell(fake, { isAuto: true });
         }, 1000 / lvl.cps);
     }
 }
@@ -2710,76 +2986,113 @@ function renderAll() {
     updateBadges();
 }
 
-function renderAuto() {
-    const c = document.getElementById('autoList');
-    c.innerHTML = autoUpgrades.map((u, i) => {
-        const isUnlocked = i === 0 || autoUpgrades[i-1].count > 0;
-        if (!isUnlocked) {
-            return `<div class="upgrade locked">
-                <div class="upg-icon">🔒</div>
-                <div class="upg-info">
-                    <div class="upg-name">???</div>
-                    <div class="upg-desc">Schalte zuerst ${autoUpgrades[i-1].name} frei</div>
-                </div>
-            </div>`;
-        }
-        let n = 1;
-        if (game.buyMode === 'max') n = Math.max(1, getMaxAffordable(u));
-        else n = game.buyMode;
-        const cost = getBulkCost(u, n);
-        const canAfford = game.dna >= getCost(u);
-        const ownership = getOwnershipMult(u.count);
-        const pulse = (u._milestoneAt && Date.now() - u._milestoneAt < 900) ? ' milestone-pulse' : '';
-        const ms = nextMilestone(u.count);
-        return `<div class="upgrade${canAfford ? ' affordable' : ''}${pulse}" onclick="buyAuto('${u.id}')">
-            <div class="upg-icon">${u.icon}</div>
+// Upgrade list rendering — split into two paths:
+//   buildList(): full rebuild (innerHTML). Called once per tab activation and
+//                whenever a purchase changes counts/locks (buyAuto/buyClick).
+//   refreshList(): in-place text+class update. Called every 250ms from gameTick
+//                  — *no* DOM creation, just updates of cost/affordability so
+//                  the list stays accurate as DNA accrues. This is the single
+//                  biggest reason the prototype now stays responsive.
+const _listState = {
+    auto: { built: false, rows: [], lastBuyMode: null },
+    click: { built: false, rows: [], lastBuyMode: null },
+};
+
+function _buildUpgradeRowHTML(u, i, kind, prev) {
+    const isUnlocked = i === 0 || prev.count > 0;
+    if (!isUnlocked) {
+        return `<div class="upgrade locked" data-uid="${u.id}">
+            <div class="upg-icon">🔒</div>
             <div class="upg-info">
-                <div class="upg-name">${u.name}</div>
-                <div class="upg-desc">+${fmt(u.dps)} DNA/s · ${u.count > 0 ? 'Total: ' + fmt(u.dps * u.count * ownership) + '/s' : 'noch nicht gebaut'}</div>
-                <div class="upg-meta">${ownership > 1 ? `<span class="mult">×${ownership}</span>` : ''} ${ms ? `<span class="milestone-tip">nächster ×2 bei ${ms}</span>` : ''} ${game.buyMode !== 1 ? `<span>kauft ${n}</span>` : ''}</div>
-            </div>
-            <div class="upg-right">
-                <div class="upg-cost ${canAfford ? '' : 'no-afford'}">${fmt(cost)}</div>
-                <div class="upg-count">×${u.count}</div>
+                <div class="upg-name">???</div>
+                <div class="upg-desc">Schalte zuerst ${prev.name} frei</div>
             </div>
         </div>`;
-    }).join('');
+    }
+    const ownership = getOwnershipMult(u.count);
+    const ms = nextMilestone(u.count);
+    const totalLabel = kind === 'auto'
+        ? (u.count > 0 ? 'Total: ' + fmt(u.dps * u.count * ownership) + '/s' : 'noch nicht gebaut')
+        : (u.count > 0 ? 'Total: +' + fmt(u.power * u.count * ownership) : 'noch nicht entwickelt');
+    const perLabel = kind === 'auto' ? `+${fmt(u.dps)} DNA/s` : `+${fmt(u.power)} pro Klick`;
+    const handler = kind === 'auto' ? `buyAuto('${u.id}')` : `buyClick('${u.id}')`;
+    return `<div class="upgrade" data-uid="${u.id}" onclick="${handler}">
+        <div class="upg-icon">${u.icon}</div>
+        <div class="upg-info">
+            <div class="upg-name">${u.name}</div>
+            <div class="upg-desc" data-role="desc">${perLabel} · ${totalLabel}</div>
+            <div class="upg-meta">
+                <span class="mult" data-role="mult" ${ownership > 1 ? '' : 'style="display:none"'}>×${ownership}</span>
+                <span class="milestone-tip" data-role="ms" ${ms ? '' : 'style="display:none"'}>${ms ? `nächster ×2 bei ${ms}` : ''}</span>
+                <span data-role="bulk" style="display:none"></span>
+            </div>
+        </div>
+        <div class="upg-right">
+            <div class="upg-cost" data-role="cost">${fmt(getCost(u))}</div>
+            <div class="upg-count" data-role="count">×${u.count}</div>
+        </div>
+    </div>`;
 }
-function renderClick() {
-    const c = document.getElementById('clickList');
-    c.innerHTML = clickUpgrades.map((u, i) => {
-        const isUnlocked = i === 0 || clickUpgrades[i-1].count > 0;
-        if (!isUnlocked) {
-            return `<div class="upgrade locked">
-                <div class="upg-icon">🔒</div>
-                <div class="upg-info">
-                    <div class="upg-name">???</div>
-                    <div class="upg-desc">Schalte zuerst ${clickUpgrades[i-1].name} frei</div>
-                </div>
-            </div>`;
+
+function _buildList(kind) {
+    const list = kind === 'auto' ? autoUpgrades : clickUpgrades;
+    const c = document.getElementById(kind === 'auto' ? 'autoList' : 'clickList');
+    c.innerHTML = list.map((u, i) => _buildUpgradeRowHTML(u, i, kind, list[i-1])).join('');
+    const state = _listState[kind];
+    state.built = true;
+    state.rows = list.map(u => c.querySelector(`[data-uid="${u.id}"]`));
+    state.lastBuyMode = game.buyMode;
+}
+
+function _refreshList(kind) {
+    const state = _listState[kind];
+    if (!state.built) { _buildList(kind); return; }
+    const list = kind === 'auto' ? autoUpgrades : clickUpgrades;
+    // Buy-mode changed? Rebuild bulk-label visibility once.
+    const buyModeChanged = state.lastBuyMode !== game.buyMode;
+    if (buyModeChanged) state.lastBuyMode = game.buyMode;
+    const now = Date.now();
+    for (let i = 0; i < list.length; i++) {
+        const u = list[i];
+        const row = state.rows[i];
+        if (!row) continue;
+        // Locked rows: unlock if predecessor is now bought (requires rebuild).
+        if (row.classList.contains('locked')) {
+            if (i > 0 && list[i-1].count > 0) { _buildList(kind); return; }
+            continue;
         }
-        let n = 1;
-        if (game.buyMode === 'max') n = Math.max(1, getMaxAffordable(u));
-        else n = game.buyMode;
+        let n = (game.buyMode === 'max') ? Math.max(1, getMaxAffordable(u)) : game.buyMode;
         const cost = getBulkCost(u, n);
         const canAfford = game.dna >= getCost(u);
-        const pulse = (u._milestoneAt && Date.now() - u._milestoneAt < 900) ? ' milestone-pulse' : '';
-        const ms = nextMilestone(u.count);
-        const ownership = getOwnershipMult(u.count);
-        return `<div class="upgrade${canAfford ? ' affordable' : ''}${pulse}" onclick="buyClick('${u.id}')">
-            <div class="upg-icon">${u.icon}</div>
-            <div class="upg-info">
-                <div class="upg-name">${u.name}</div>
-                <div class="upg-desc">+${fmt(u.power)} pro Klick · ${u.count > 0 ? 'Total: +' + fmt(u.power * u.count * ownership) : 'noch nicht entwickelt'}</div>
-                <div class="upg-meta">${ownership > 1 ? `<span class="mult">×${ownership}</span>` : ''} ${ms ? `<span class="milestone-tip">nächster ×2 bei ${ms}</span>` : ''} ${game.buyMode !== 1 ? `<span>kauft ${n}</span>` : ''}</div>
-            </div>
-            <div class="upg-right">
-                <div class="upg-cost ${canAfford ? '' : 'no-afford'}">${fmt(cost)}</div>
-                <div class="upg-count">×${u.count}</div>
-            </div>
-        </div>`;
-    }).join('');
+        row.classList.toggle('affordable', canAfford);
+        const pulse = u._milestoneAt && (now - u._milestoneAt < 900);
+        row.classList.toggle('milestone-pulse', !!pulse);
+        const costEl = row.querySelector('[data-role="cost"]');
+        if (costEl) {
+            costEl.textContent = fmt(cost);
+            costEl.classList.toggle('no-afford', !canAfford);
+        }
+        if (buyModeChanged) {
+            const bulkEl = row.querySelector('[data-role="bulk"]');
+            if (bulkEl) {
+                if (game.buyMode !== 1) {
+                    bulkEl.textContent = `kauft ${n}`;
+                    bulkEl.style.display = '';
+                } else {
+                    bulkEl.style.display = 'none';
+                }
+            }
+        } else if (game.buyMode === 'max') {
+            const bulkEl = row.querySelector('[data-role="bulk"]');
+            if (bulkEl) bulkEl.textContent = `kauft ${n}`;
+        }
+    }
 }
+
+function renderAuto()  { _buildList('auto'); }
+function renderClick() { _buildList('click'); }
+function refreshAuto()  { _refreshList('auto'); }
+function refreshClick() { _refreshList('click'); }
 function renderResearch() {
     const c = document.getElementById('researchList');
     let availableCount = 0;
@@ -2995,34 +3308,73 @@ function hardReset() {
 // IMPORTANT: DPS accumulation uses Date.now() to remain correct when the
 // browser tab is in the background and rAF pauses. Visuals run on rAF.
 let lastFrame = performance.now();
+let rafHandle = 0;
+let visibleFlag = !document.hidden;
+let gamePaused = false;
+let gameLowQuality = false;
+let userQualityPref = 'auto'; // auto | low | mid | high
+let fpsHudOn = false;
+
+// Adaptive FPS sampling. We keep a rolling average and downgrade quality
+// automatically if the renderer is dropping frames consistently. This keeps
+// the prototype playable on weaker laptops without manual tweaking.
+let fpsSamples = [];
+let fpsAvg = 60;
+function _pushFps(dtMs) {
+    if (dtMs <= 0) return;
+    const fps = 1000 / dtMs;
+    fpsSamples.push(fps);
+    if (fpsSamples.length > 60) fpsSamples.shift();
+    fpsAvg = fpsSamples.reduce((a,b)=>a+b,0) / fpsSamples.length;
+}
 
 function visualLoop(now) {
     const dtMs = Math.min(50, now - lastFrame);
     lastFrame = now;
+    _pushFps(dtMs);
+    if (!visibleFlag || gamePaused) {
+        // Skip heavy work entirely while hidden / paused. Logic tick keeps
+        // running on setInterval to credit idle progression.
+        rafHandle = requestAnimationFrame(visualLoop);
+        return;
+    }
     // 3D morphogenesis owns the cell visual now.
     if (window.BioNexus) window.BioNexus.update(dtMs);
     // Ambient FX layers still live in DOM/Canvas2D.
-    CellDrift.tick(now);
-    ParticleField.step(dtMs / 1000);
+    if (!gameLowQuality) {
+        CellDrift.tick(now);
+        ParticleField.step(dtMs / 1000);
+    }
     // UI tick
     tickCombo();
     renderAbilities();
-    requestAnimationFrame(visualLoop);
+    if (fpsHudOn) {
+        const el = document.getElementById('fpsHud');
+        if (el) el.textContent = Math.round(fpsAvg) + ' fps · ' + userQualityPref;
+    }
+    // Auto-downgrade: if avg fps below 28 for a sustained window, drop quality.
+    if (userQualityPref === 'auto' && fpsSamples.length >= 50 && fpsAvg < 28 && !gameLowQuality) {
+        _applyQualityLevel('low');
+    }
+    rafHandle = requestAnimationFrame(visualLoop);
 }
 
 function gameTick() {
     const now = Date.now();
     const dtMs = Math.max(0, now - (game.lastRealTick || now));
     game.lastRealTick = now;
+    if (gamePaused) return; // freeze idle accumulation while paused
     // Cap single-tick gain to prevent absurd jumps from pathological sleeps
     const dtSec = Math.min(dtMs / 1000, 60); // 1 minute max per tick
     recalcStats();
     if (game.dps > 0 && dtSec > 0) addDna(game.dps * dtSec);
 
-    // Mini-events
-    maybeSpawnGolden(dtMs);
-    maybeSpawnMutation(dtMs);
-    maybeSpawnDnaDrop(dtMs);
+    // Mini-events (only when visible — they're visual rewards, not idle income)
+    if (visibleFlag) {
+        maybeSpawnGolden(dtMs);
+        maybeSpawnMutation(dtMs);
+        maybeSpawnDnaDrop(dtMs);
+    }
 
     // End ability buffs whose time ran out
     abilities.forEach(a => {
@@ -3040,12 +3392,104 @@ function renderHud() {
     document.getElementById('dna').textContent = fmt(game.dna);
     document.getElementById('dps').textContent = fmt(game.dps);
     document.getElementById('clickValue').textContent = '+' + fmt(game.clickPower);
-    // Only re-render the currently visible panel for performance
-    if (game.activeTab === 'auto') renderAuto();
-    else if (game.activeTab === 'click') renderClick();
+    // Hot path: per-tick in-place refresh instead of innerHTML overwrite.
+    // The full innerHTML rebuild (renderAuto/renderClick) is now reserved for
+    // count/lock changes — see buyAuto/buyClick. Big win for performance.
+    if (game.activeTab === 'auto') refreshAuto();
+    else if (game.activeTab === 'click') refreshClick();
     else if (game.activeTab === 'research') renderResearch();
     else if (game.activeTab === 'meta') renderMeta();
     updateStage();
+}
+
+// =============================== PAUSE / QUALITY / SAVE I/O =================
+function togglePause() {
+    gamePaused = !gamePaused;
+    document.body.classList.toggle('paused', gamePaused);
+    if (window.BioNexus) window.BioNexus.setPaused(gamePaused);
+    const btn = document.getElementById('pauseBtn');
+    if (btn) btn.textContent = gamePaused ? 'Fortsetzen' : 'Pausieren';
+    // Sync last tick on resume so dt isn't a huge jump.
+    if (!gamePaused) { game.lastRealTick = Date.now(); }
+}
+
+function _applyQualityLevel(level) {
+    // level: 'low' | 'mid' | 'high'
+    gameLowQuality = (level === 'low');
+    document.body.classList.toggle('qp-low', level === 'low');
+    if (window.BioNexus) {
+        if (level === 'low')  { window.BioNexus.setQualityScale(0.30); window.BioNexus.setPixelRatioScale(0.7); }
+        else if (level === 'mid')  { window.BioNexus.setQualityScale(0.65); window.BioNexus.setPixelRatioScale(0.85); }
+        else                       { window.BioNexus.setQualityScale(1.0);  window.BioNexus.setPixelRatioScale(1.0); }
+    }
+    const lbl = document.getElementById('qpLabel');
+    if (lbl) lbl.textContent = userQualityPref === 'auto' ? `Auto (${level})` : level.charAt(0).toUpperCase() + level.slice(1);
+}
+
+function setQualityPref(pref) {
+    userQualityPref = pref;
+    if (pref === 'auto') {
+        // Pick an initial level based on hardware; the loop may downgrade later.
+        const initial = (navigator.hardwareConcurrency || 4) <= 4 || /Mobile|Android|iPhone/i.test(navigator.userAgent || '') ? 'mid' : 'high';
+        _applyQualityLevel(initial);
+    } else {
+        _applyQualityLevel(pref);
+    }
+    document.querySelectorAll('#qpSelect button').forEach(b => {
+        b.classList.toggle('active', b.dataset.qp === pref);
+    });
+    try { localStorage.setItem(SAVE_KEY + ':quality', pref); } catch(e){}
+}
+
+function toggleFpsHud() {
+    fpsHudOn = !fpsHudOn;
+    const hud = document.getElementById('fpsHud');
+    const btn = document.getElementById('fpsBtn');
+    if (hud) hud.classList.toggle('on', fpsHudOn);
+    if (btn) btn.textContent = fpsHudOn ? 'An' : 'Aus';
+}
+
+function exportSave() {
+    saveGame();
+    const raw = localStorage.getItem(SAVE_KEY) || '{}';
+    const b64 = btoa(unescape(encodeURIComponent(raw)));
+    const payload = 'EVO1:' + b64;
+    // Try clipboard first; fall back to a textarea-prompt.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).then(
+            () => toast('💾 Save in Zwischenablage kopiert'),
+            () => _exportFallback(payload)
+        );
+    } else {
+        _exportFallback(payload);
+    }
+}
+function _exportFallback(payload) {
+    const ta = document.createElement('textarea');
+    ta.value = payload; ta.style.position = 'fixed'; ta.style.top = '50%'; ta.style.left = '50%';
+    ta.style.transform = 'translate(-50%, -50%)'; ta.style.width = '80%'; ta.style.height = '40%';
+    ta.style.zIndex = 9999; ta.style.background = '#0a0e1a'; ta.style.color = '#e6ecf3';
+    ta.style.border = '1px solid rgba(0,255,163,0.4)'; ta.style.padding = '10px';
+    document.body.appendChild(ta);
+    ta.select();
+    setTimeout(() => { ta.remove(); }, 30000);
+    toast('💾 Save unten markiert — Strg+C zum Kopieren');
+}
+function importSavePrompt() {
+    const payload = prompt('Save-Code einfügen (beginnt mit "EVO1:"):');
+    if (!payload) return;
+    if (!payload.startsWith('EVO1:')) { alert('Ungültiges Format — der Code muss mit „EVO1:" beginnen.'); return; }
+    try {
+        const raw = decodeURIComponent(escape(atob(payload.slice(5))));
+        // Sanity: must parse as JSON with a "game" key.
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || !parsed.game) throw new Error('schema');
+        if (!confirm('Aktueller Spielstand wird überschrieben. Wirklich importieren?')) return;
+        localStorage.setItem(SAVE_KEY, raw);
+        location.reload();
+    } catch (e) {
+        alert('Import fehlgeschlagen: ' + (e.message || e));
+    }
 }
 
 // =============================== INPUT ======================================
@@ -3234,13 +3678,27 @@ document.addEventListener('pointerdown', (e) => {
 window.addEventListener('beforeunload', saveGame);
 window.addEventListener('pagehide', saveGame);
 document.addEventListener('visibilitychange', () => {
+    visibleFlag = !document.hidden;
     if (document.hidden) {
         saveGame();
     } else {
-        // Tab visible again: catch up immediately so numbers feel continuous
+        // Tab visible again: catch up immediately so numbers feel continuous.
+        // We also reset the lastRealTick to "now" so the dt-cap doesn't credit
+        // huge instantaneous gains beyond the offline cap that loadGame applies.
+        game.lastRealTick = Date.now();
         gameTick();
     }
 });
+
+// Quality preset wiring
+document.querySelectorAll('#qpSelect button').forEach(b => {
+    b.addEventListener('click', () => setQualityPref(b.dataset.qp));
+});
+
+// Initial quality preset (loaded from localStorage if present).
+let savedQp = 'auto';
+try { savedQp = localStorage.getItem(SAVE_KEY + ':quality') || 'auto'; } catch(e){}
+setQualityPref(savedQp);
 
 // Periodic save backup
 setInterval(saveGame, 15000);
@@ -3248,7 +3706,7 @@ setInterval(saveGame, 15000);
 // Visuals at 60fps; logic at a steady 250ms — independent of rAF so it
 // keeps running when the tab is backgrounded.
 game.lastRealTick = Date.now();
-requestAnimationFrame(visualLoop);
+rafHandle = requestAnimationFrame(visualLoop);
 setInterval(gameTick, 250);
 </script>
 </body>
