@@ -12,9 +12,9 @@ extends Node
 ##   P1-003 — DataLoader populates from data/*.json
 ##   P1-004 — SaveSystem with schema-version + migrations + checksum
 ##   P1-005 — TickSystem (logic 4 Hz, visual per-frame, periodic auto-save)
+##   P1-006 — ClickSystem + UpgradeSystem (DPS accumulation + milestone math)
 ##
 ## Still to come:
-##   P1-006 — ClickSystem + UpgradeSystem
 ##   P1-007 — StageSystem
 ##   P1-008 — PrestigeSystem
 ##   P1-009 — AchievementSystem
@@ -44,6 +44,7 @@ func _ready() -> void:
 	report.append(_check_steam_api())
 	report.append(_check_telemetry())
 	report.append(_check_tick_system())
+	report.append(_check_click_and_upgrade())
 
 	var summary: String = "\n".join(report)
 	print("[Evolution] Autoload smoke-test:\n%s" % summary)
@@ -119,3 +120,32 @@ func _check_tick_system() -> String:
 	if not running:
 		return "TickSystem: FAIL (not running)"
 	return "TickSystem: OK — logic %.2fs / save %.0fs (auto-save off for smoke-test)" % [logic_s, save_s]
+
+func _check_click_and_upgrade() -> String:
+	# P1-006: simulate a few clicks + a buy, verify GameState changed
+	# accordingly. Reset counts back to zero so the smoke-test leaves
+	# no game-state side-effects on subsequent boots.
+	var dna_before: float = GameState.dna
+	var click_before: int = GameState.total_clicks
+	GameState.click_power = 1.0
+	ClickSystem.register_click()
+	ClickSystem.register_click()
+	ClickSystem.register_click()
+	var clicks_added: int = GameState.total_clicks - click_before
+	var dna_after_clicks: float = GameState.dna
+	# Buy 1 auto_001 (cost 60). Give DNA for it.
+	GameState.dna = 200.0
+	var bought: bool = UpgradeSystem.buy("auto_001")
+	var dps_after: float = GameState.dps
+	# Cleanup so the live game state isn't polluted by smoke-test.
+	GameState.dna = dna_before
+	GameState.total_clicks = click_before
+	GameState.upgrade_counts.erase("auto_001")
+	UpgradeSystem.recalc_stats()
+	if clicks_added != 3:
+		return "ClickSystem: FAIL (added %d clicks, expected 3)" % clicks_added
+	if not bought:
+		return "UpgradeSystem: FAIL (buy auto_001 failed)"
+	if dps_after <= 0.0:
+		return "UpgradeSystem: FAIL (dps did not rise after buy)"
+	return "Click+Upgrade: OK — 3 clicks added DNA, auto_001 buy raised dps to %.2f/s" % dps_after
