@@ -25,6 +25,7 @@ TESTS=(
     tests/test_upgrade_system.gd
     tests/test_click_system.gd
     tests/test_stage_system.gd
+    tests/test_prestige_system.gd
 )
 
 FAIL=0

@@ -14,9 +14,9 @@ extends Node
 ##   P1-005 — TickSystem (logic 4 Hz, visual per-frame, periodic auto-save)
 ##   P1-006 — ClickSystem + UpgradeSystem (DPS accumulation + milestone math)
 ##   P1-007 — StageSystem (threshold progression, stage_changed signal)
+##   P1-008 — PrestigeSystem (lifetime-DNA threshold, EP formula, compounding multiplier)
 ##
 ## Still to come:
-##   P1-008 — PrestigeSystem
 ##   P1-009 — AchievementSystem
 ##   P1-010 — BioNexus shader port (GLSL -> GDShader)
 ##   P1-011 — Greybox UI (tabs, panels, upgrade cards) + audio bus layout
@@ -46,6 +46,7 @@ func _ready() -> void:
 	report.append(_check_tick_system())
 	report.append(_check_click_and_upgrade())
 	report.append(_check_stage_system())
+	report.append(_check_prestige_system())
 
 	var summary: String = "\n".join(report)
 	print("[Evolution] Autoload smoke-test:\n%s" % summary)
@@ -133,21 +134,26 @@ func _check_click_and_upgrade() -> String:
 	#                                   internal combo counter
 	#   GameState.dna = 200.0       -> dna (overwritten before buy)
 	#   UpgradeSystem.buy("auto_001") -> dna, upgrade_counts["auto_001"],
-	#                                    dps + click_power (via recalc_stats)
+	#                                    dps + click_power (via recalc_stats,
+	#                                    which also reads prestige_multiplier)
 	#   GameState.add_dna() side-effects (P1-007+): StageSystem may bump
 	#                                   GameState.stage on total_dna_changed
-	# We snapshot every one of those fields and restore them at the end.
-	# We also reset_combo() to clear ClickSystem's internal counter.
+	# We snapshot every potentially-touched field and restore at the end.
+	# prestige_points/multiplier are not modified here but are included
+	# defensively so a hypothetical future addition can't silently corrupt
+	# meta-progression.
 	var snapshot: Dictionary = {
-		"dna":             GameState.dna,
-		"total_dna":       GameState.total_dna,
-		"lifetime_dna":    GameState.lifetime_dna,
-		"click_power":     GameState.click_power,
-		"dps":             GameState.dps,
-		"stage":           GameState.stage,
-		"total_clicks":    GameState.total_clicks,
-		"total_crits":     GameState.total_crits,
-		"upgrade_counts":  GameState.upgrade_counts.duplicate(true),
+		"dna":                  GameState.dna,
+		"total_dna":            GameState.total_dna,
+		"lifetime_dna":         GameState.lifetime_dna,
+		"click_power":          GameState.click_power,
+		"dps":                  GameState.dps,
+		"stage":                GameState.stage,
+		"prestige_points":      GameState.prestige_points,
+		"prestige_multiplier":  GameState.prestige_multiplier,
+		"total_clicks":         GameState.total_clicks,
+		"total_crits":          GameState.total_crits,
+		"upgrade_counts":       GameState.upgrade_counts.duplicate(true),
 	}
 	# Drive the smoke check from a known click_power baseline so result text
 	# is predictable; snapshot restores it after.
@@ -162,15 +168,17 @@ func _check_click_and_upgrade() -> String:
 	var bought: bool = UpgradeSystem.buy("auto_001")
 	var dps_after: float = GameState.dps
 	# --- Restore exactly what we snapshotted ---
-	GameState.dna            = snapshot["dna"]
-	GameState.total_dna      = snapshot["total_dna"]
-	GameState.lifetime_dna   = snapshot["lifetime_dna"]
-	GameState.click_power    = snapshot["click_power"]
-	GameState.dps            = snapshot["dps"]
-	GameState.stage          = snapshot["stage"]
-	GameState.total_clicks   = snapshot["total_clicks"]
-	GameState.total_crits    = snapshot["total_crits"]
-	GameState.upgrade_counts = snapshot["upgrade_counts"]
+	GameState.dna                 = snapshot["dna"]
+	GameState.total_dna           = snapshot["total_dna"]
+	GameState.lifetime_dna        = snapshot["lifetime_dna"]
+	GameState.click_power         = snapshot["click_power"]
+	GameState.dps                 = snapshot["dps"]
+	GameState.stage               = snapshot["stage"]
+	GameState.prestige_points     = snapshot["prestige_points"]
+	GameState.prestige_multiplier = snapshot["prestige_multiplier"]
+	GameState.total_clicks        = snapshot["total_clicks"]
+	GameState.total_crits         = snapshot["total_crits"]
+	GameState.upgrade_counts      = snapshot["upgrade_counts"]
 	ClickSystem.reset_combo()
 	UpgradeSystem.recalc_stats()  # rebuild dps/click_power from restored counts
 	if clicks_added != 3:
@@ -194,3 +202,18 @@ func _check_stage_system() -> String:
 	if tier_at_25k != 3:
 		return "StageSystem: FAIL (25k DNA should be tier 3, got %d)" % tier_at_25k
 	return "StageSystem: OK — pure lookup matches stages.json (current stage=%d)" % GameState.stage
+
+func _check_prestige_system() -> String:
+	# P1-008: PrestigeSystem queries are pure (don't mutate state).
+	# Use those to verify the formula is wired without touching player progress.
+	# - At lifetime_dna = 0, should NOT be eligible.
+	# - get_lifetime_dna_needed_for_total_points(1) should be 1M (threshold).
+	# - get_current_multiplier() should equal GameState.prestige_multiplier
+	#   after recalc (PrestigeSystem._ready() ran one already).
+	var needed_for_1: float = PrestigeSystem.get_lifetime_dna_needed_for_total_points(1)
+	if abs(needed_for_1 - 1_000_000.0) > 0.001:
+		return "PrestigeSystem: FAIL (1 EP needs 1M, got %f)" % needed_for_1
+	var cur_mult: float = PrestigeSystem.get_current_multiplier()
+	return "PrestigeSystem: OK — current x%.2f, %d EP available" % [
+		cur_mult, PrestigeSystem.get_evolution_points_available()
+	]
