@@ -46,6 +46,13 @@ const STAGE_VISUAL_SIGNATURES: PackedStringArray = PackedStringArray([
 	"swim", "tumble", "hunt", "glide", "shimmer", "none",
 ])
 
+# Per-stage silhouette kinds. "fibonacci" = default cluster -> organism morph.
+# Other kinds drive bionexus.gd's per-shape target-pos generator.
+const STAGE_VISUAL_SHAPE_KINDS: PackedStringArray = PackedStringArray([
+	"fibonacci", "proto", "rna", "dna", "capsid",
+	"rod", "rod_flagellum", "lumpy", "amoeba", "ellipsoid",
+])
+
 # ----------------------------------------------------------------------------
 # ENUM ALLOWLISTS
 # ----------------------------------------------------------------------------
@@ -327,6 +334,11 @@ func _load_stage_visuals(path: String) -> bool:
 		var sig: String = String(item["signature"])
 		if not (sig in STAGE_VISUAL_SIGNATURES):
 			_fail(path, "%s: signature '%s' not in allowlist" % [ctx, sig])
+			return false
+		if not _require_field(path, item, "shape_kind", [TYPE_STRING], ctx): return false
+		var kind: String = String(item["shape_kind"])
+		if not (kind in STAGE_VISUAL_SHAPE_KINDS):
+			_fail(path, "%s: shape_kind '%s' not in allowlist" % [ctx, kind])
 			return false
 		var sid: String = item["stage_id"]
 		if _stage_visual_by_id.has(sid):

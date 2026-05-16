@@ -41,6 +41,7 @@ func _run_all() -> void:
 	_test_stage_by_tier_helper()
 	_test_stage_visuals_present_for_every_stage()
 	_test_stage_visuals_signature_allowlisted()
+	_test_stage_visuals_shape_kind_allowlisted()
 	_test_stage_visuals_colors_are_hex()
 	_test_stage_visual_lookups()
 
@@ -188,6 +189,13 @@ func _test_stage_visuals_signature_allowlisted() -> void:
 		_assert(
 			sig in DataLoader.STAGE_VISUAL_SIGNATURES,
 			"stage_visual '%s' has unknown signature '%s'" % [v["stage_id"], sig])
+
+func _test_stage_visuals_shape_kind_allowlisted() -> void:
+	for v in DataLoader.stage_visuals:
+		var kind: String = String(v["shape_kind"])
+		_assert(
+			kind in DataLoader.STAGE_VISUAL_SHAPE_KINDS,
+			"stage_visual '%s' has unknown shape_kind '%s'" % [v["stage_id"], kind])
 
 func _test_stage_visuals_colors_are_hex() -> void:
 	for v in DataLoader.stage_visuals:

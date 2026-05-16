@@ -19,20 +19,23 @@ extends MultiMeshInstance3D
 
 const MAX_INSTANCES: int = 4000
 
-# Stage tuning (per-tier targets — extracted from the prototype's
-# stageToTargets() so the look matches across both renderers).
+# Stage tuning (per-tier targets — counts and camera distances for stages 1-9
+# bumped so the dedicated silhouettes (proto / rna / dna / capsid / rod /
+# rod+flagellum / lumpy / amoeba / ellipsoid) read clearly at the closer
+# camera. morph=1.0 for stages 2-9 so the shader uses the per-shape target
+# positions instead of the cluster transform.
 # Each entry: cell-count, morph (0..1), swim (0..1), camera-z.
 const STAGE_TARGETS: Array = [
-	{"count":    1, "morph": 0.0, "swim": 0.0, "cam_z": 14.0},  # tier 1
-	{"count":    8, "morph": 0.0, "swim": 0.0, "cam_z": 18.0},
-	{"count":   24, "morph": 0.0, "swim": 0.0, "cam_z": 22.0},
-	{"count":   60, "morph": 0.0, "swim": 0.0, "cam_z": 26.0},
-	{"count":  120, "morph": 0.0, "swim": 0.0, "cam_z": 30.0},
-	{"count":  240, "morph": 0.0, "swim": 0.0, "cam_z": 34.0},
-	{"count":  420, "morph": 0.0, "swim": 0.0, "cam_z": 38.0},
-	{"count":  700, "morph": 0.0, "swim": 0.0, "cam_z": 42.0},  # tier 8
-	{"count": 1100, "morph": 0.0, "swim": 0.0, "cam_z": 46.0},
-	{"count": 1600, "morph": 0.0, "swim": 0.0, "cam_z": 50.0},
+	{"count":    1, "morph": 0.0, "swim": 0.0, "cam_z": 14.0},  # tier 1 — proto (hero blob, no morph needed)
+	{"count":  120, "morph": 1.0, "swim": 0.0, "cam_z": 16.0},  # tier 2 — rna strand
+	{"count":  200, "morph": 1.0, "swim": 0.0, "cam_z": 18.0},  # tier 3 — dna helix
+	{"count":  220, "morph": 1.0, "swim": 0.0, "cam_z": 14.0},  # tier 4 — virus capsid
+	{"count":  260, "morph": 1.0, "swim": 0.0, "cam_z": 12.0},  # tier 5 — prokaryot rod
+	{"count":  320, "morph": 1.0, "swim": 0.0, "cam_z": 18.0},  # tier 6 — bakterium + flagellum
+	{"count":  350, "morph": 1.0, "swim": 0.0, "cam_z": 14.0},  # tier 7 — archaea lumpy
+	{"count":  400, "morph": 1.0, "swim": 0.0, "cam_z": 16.0},  # tier 8 — amoeba + arms
+	{"count":  450, "morph": 1.0, "swim": 0.0, "cam_z": 22.0},  # tier 9 — paramecium ellipsoid
+	{"count": 1600, "morph": 0.0, "swim": 0.0, "cam_z": 50.0},  # tier 10 — back to cluster aesthetic
 	{"count": 2100, "morph": 0.1, "swim": 0.0, "cam_z": 54.0},
 	{"count": 2500, "morph": 0.3, "swim": 0.0, "cam_z": 56.0},  # tier 12
 	{"count": 2800, "morph": 0.5, "swim": 0.0, "cam_z": 58.0},
@@ -148,6 +151,247 @@ func _seed_instance_data() -> void:
 		multimesh.set_instance_color(i, Color(target_pos.x, target_pos.y, target_pos.z, cell_type))
 		# INSTANCE_CUSTOM.x = clusterOffset (other channels unused in v1)
 		multimesh.set_instance_custom_data(i, Color(cluster_offset, 0.0, 0.0, 0.0))
+
+# ----------------------------------------------------------------------------
+# Per-stage silhouette generators — port of the HTML shapeXxx() functions
+# (index.html rev d244083). Each writes target positions for the first
+# `count` instances directly into INSTANCE_COLOR (rgb = target_pos, a = cell
+# type). cellType policy mirrors the HTML applyShape() per-shape rules:
+#   dna     -> halfStrand A=0/membrane, halfStrand B=1/organ, rungs alternate
+#   capsid  -> capsid cells 0/membrane, spike cells 1/organ
+#   others  -> uniform 0/membrane
+# Called from _apply_stage_shape on stage change, cheap (one-shot per tier).
+# ----------------------------------------------------------------------------
+
+# Reseeds the organism-shape target positions written by _seed_instance_data.
+# Used when the active stage is "fibonacci" (cluster aesthetic). Identical
+# math to _seed_instance_data so a stage 9 -> 10 transition produces the same
+# late-game organism layout the player saw the first time around.
+func _reseed_organism_shape(count: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xB10
+	for i in count:
+		var t: float = (float(i) + 0.5) / float(MAX_INSTANCES)
+		var t_signed: float = (t - 0.5) * 2.0
+		t = (sign(t_signed) * pow(abs(t_signed), 0.8) + 1.0) / 2.0
+		var x: float = (t - 0.5) * ORGANISM_LENGTH
+		var thickness: float = sin(t * PI) * 3.6
+		if t > 0.7:
+			thickness += sin((t - 0.7) * PI / 0.3) * 1.2
+		if t < 0.1:
+			thickness *= (t * 10.0)
+		var ang: float = rng.randf() * TAU
+		var rad: float = rng.randf()
+		var is_organ: bool = rad < 0.35 and t > 0.2 and t < 0.85
+		var r: float = (rad if is_organ else sqrt(rad)) * thickness
+		var cell_type: float = 1.0 if is_organ else 0.0
+		multimesh.set_instance_color(i, Color(x, sin(ang) * r, cos(ang) * r, cell_type))
+
+func _shape_proto(count: int) -> void:
+	# Single hero blob at origin — morph has no effect.
+	for i in count:
+		multimesh.set_instance_color(i, Color(0.0, 0.0, 0.0, 0.0))
+
+func _shape_rna(count: int) -> void:
+	# Single right-handed helix (RNA strand). Wider than real RNA so it
+	# reads as a spiral at the game's camera distance.
+	var turns: float = 4.5
+	var length: float = 14.0
+	var radius: float = 3.0
+	for i in count:
+		var t: float = float(i) / float(max(1, count - 1))
+		var a: float = t * turns * TAU
+		multimesh.set_instance_color(i, Color(
+			cos(a) * radius, (t - 0.5) * length, sin(a) * radius, 0.0))
+
+func _shape_dna(count: int) -> void:
+	# Two intertwined right-handed strands + base-pair rungs between them.
+	var turns: float = 3.0
+	var length: float = 20.0
+	var radius: float = 5.0
+	var strand_frac: float = 0.36
+	var half_strand: int = max(1, int(float(count) * strand_frac))
+	var rung_count: int = max(0, count - 2 * half_strand)
+	for i in half_strand:
+		var t: float = float(i) / float(max(1, half_strand - 1))
+		var a: float = t * turns * TAU
+		var y: float = (t - 0.5) * length
+		# Strand A — cellType 0 (membrane / first colour)
+		multimesh.set_instance_color(i, Color(cos(a) * radius, y, sin(a) * radius, 0.0))
+		# Strand B — π-offset, cellType 1 (organ / second colour)
+		var j: int = i + half_strand
+		multimesh.set_instance_color(j, Color(cos(a + PI) * radius, y, sin(a + PI) * radius, 1.0))
+	# Rungs span the two strands at fractional positions; alternate cellType.
+	var seg_count: int = max(1, int(ceil(float(rung_count) / 4.0)))
+	for i in rung_count:
+		var seg_idx: int = i / 4
+		var seg_pos: float = float(i % 4) / 4.0
+		var tt: float = (float(seg_idx) + 0.5) / float(seg_count)
+		var a: float = tt * turns * TAU
+		var y: float = (tt - 0.5) * length
+		var xa: float = cos(a) * radius
+		var za: float = sin(a) * radius
+		var xb: float = cos(a + PI) * radius
+		var zb: float = sin(a + PI) * radius
+		var k: int = 2 * half_strand + i
+		var ct: float = float(i & 1)
+		multimesh.set_instance_color(k, Color(
+			xa + (xb - xa) * seg_pos, y, za + (zb - za) * seg_pos, ct))
+
+func _shape_capsid(count: int) -> void:
+	# Icosahedral capsid (Fibonacci sphere) + protruding spike layer for
+	# the classic virus silhouette.
+	var capsid_count: int = max(1, int(float(count) * 0.75))
+	var spike_count: int = max(0, count - capsid_count)
+	var r: float = 4.4
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in capsid_count:
+		var y: float = (0.0 if capsid_count <= 1
+			else 1.0 - (float(i) / float(capsid_count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(i)
+		multimesh.set_instance_color(i, Color(
+			cos(th) * cr * r, y * r, sin(th) * cr * r, 0.0))
+	var spike_r: float = r * 1.55
+	for i in spike_count:
+		var y: float = (0.0 if spike_count <= 1
+			else 1.0 - (float(i) / float(spike_count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(i) + 0.6
+		var k: int = capsid_count + i
+		multimesh.set_instance_color(k, Color(
+			cos(th) * cr * spike_r, y * spike_r, sin(th) * cr * spike_r, 1.0))
+
+func _shape_rod(count: int) -> void:
+	# Small densely-packed coccus (prokaryot) — uniform Fibonacci sphere.
+	var r: float = 2.8
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in count:
+		var y: float = (0.0 if count <= 1
+			else 1.0 - (float(i) / float(count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(i)
+		multimesh.set_instance_color(i, Color(
+			cos(th) * cr * r, y * r, sin(th) * cr * r, 0.0))
+
+func _shape_rod_flagellum(count: int) -> void:
+	# Bacillus capsule + static flagellum tail seed. Tail animation lives
+	# in a follow-up — here we just lay down the silhouette.
+	var tail_frac: float = 0.22
+	var tail_count: int = max(8, int(float(count) * tail_frac))
+	var body_count: int = count - tail_count
+	var body_len: float = 7.5
+	var body_r: float = 1.9
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in body_count:
+		var u: float = (0.5 if body_count <= 1
+			else float(i) / float(body_count - 1))
+		var ang: float = phi * float(i)
+		var x: float
+		var r: float
+		if u < 0.18:
+			# -X hemispherical cap
+			var v: float = u / 0.18
+			var theta: float = v * PI * 0.5
+			x = -body_len * 0.5 - cos(theta) * body_r + body_r
+			r = sin(theta) * body_r
+		elif u > 0.82:
+			# +X hemispherical cap (flagellum attaches here)
+			var v: float = (u - 0.82) / 0.18
+			var theta: float = v * PI * 0.5
+			x = body_len * 0.5 + sin(theta) * body_r
+			r = cos(theta) * body_r
+		else:
+			# Cylindrical belt
+			var v: float = (u - 0.18) / 0.64
+			x = -body_len * 0.5 + body_r + v * body_len
+			r = body_r
+		multimesh.set_instance_color(i, Color(x, sin(ang) * r, cos(ang) * r, 0.0))
+	# Tail seed — straight line trailing the body. Tail wave animation TODO.
+	var tail_start_x: float = body_len * 0.5 + body_r
+	for i in tail_count:
+		var t: float = float(i) / float(max(1, tail_count - 1))
+		multimesh.set_instance_color(body_count + i,
+			Color(tail_start_x + t * 8.0, 0.0, 0.0, 1.0))
+
+func _shape_lumpy(count: int) -> void:
+	# Archaea — bumpy spheroid. Fibonacci sphere displaced by deterministic
+	# index noise so the silhouette reads as alien-rock.
+	var r: float = 3.4
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in count:
+		var y: float = (0.0 if count <= 1
+			else 1.0 - (float(i) / float(count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(i)
+		# Stable per-index hash (matches HTML's sin*43758 trick).
+		var n: float = sin(float(i) * 12.9898) * 43758.5453
+		var bump: float = 1.0 + ((n - floor(n)) - 0.5) * 0.7
+		multimesh.set_instance_color(i, Color(
+			cos(th) * cr * r * bump,
+			y * r * bump,
+			sin(th) * cr * r * bump, 0.0))
+
+func _shape_amoeba(count: int) -> void:
+	# Core blob + 4 procedural pseudopod arm seeds (static; wiggle animation
+	# lives in a follow-up PR).
+	var core_frac: float = 0.6
+	var core_count: int = int(float(count) * core_frac)
+	var arm_count: int = count - core_count
+	var arms: int = 4
+	var cells_per_arm: int = int(float(arm_count) / float(arms))
+	var arm_remainder: int = arm_count - cells_per_arm * arms
+	var r: float = 3.2
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in core_count:
+		var y: float = (0.0 if core_count <= 1
+			else 1.0 - (float(i) / float(core_count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(i)
+		var n: float = (sin(float(i) * 7.13) * 0.5 + 0.5) * 0.25 + 0.95
+		multimesh.set_instance_color(i, Color(
+			cos(th) * cr * r * n, y * r * n, sin(th) * cr * r * n, 0.0))
+	var write_idx: int = core_count
+	for a in arms:
+		var arm_base_ang: float = float(a) / float(arms) * TAU
+		var n_per: int = cells_per_arm + (1 if a < arm_remainder else 0)
+		for k in n_per:
+			var t: float = float(k + 1) / float(n_per)
+			var reach: float = r + t * 4.0
+			multimesh.set_instance_color(write_idx, Color(
+				cos(arm_base_ang) * reach, 0.0, sin(arm_base_ang) * reach, 0.0))
+			write_idx += 1
+
+func _shape_ellipsoid(count: int) -> void:
+	# Paramecium — prolate spheroid (elongated oval). Cilia overlay is a
+	# 2D UI concern (Phase-2 P2-002 polish ticket).
+	var len_x: float = 9.5
+	var rad_y: float = 3.0
+	var rad_z: float = 3.0
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in count:
+		var y: float = (0.0 if count <= 1
+			else 1.0 - (float(i) / float(count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(i)
+		multimesh.set_instance_color(i, Color(
+			cos(th) * cr * len_x, y * rad_y, sin(th) * cr * rad_z, 0.0))
+
+# Dispatches to the per-shape generator. Called on stage transition AFTER
+# _layout_cluster has set per-instance transforms for the new count.
+func _apply_stage_shape(kind: String, count: int) -> void:
+	count = clamp(count, 1, MAX_INSTANCES)
+	match kind:
+		"proto":         _shape_proto(count)
+		"rna":           _shape_rna(count)
+		"dna":           _shape_dna(count)
+		"capsid":        _shape_capsid(count)
+		"rod":           _shape_rod(count)
+		"rod_flagellum": _shape_rod_flagellum(count)
+		"lumpy":         _shape_lumpy(count)
+		"amoeba":        _shape_amoeba(count)
+		"ellipsoid":     _shape_ellipsoid(count)
+		_:               _reseed_organism_shape(count)  # "fibonacci" / unknown
 
 # ----------------------------------------------------------------------------
 # Fibonacci-sphere cluster layout — sets per-instance transform for the
@@ -303,10 +547,12 @@ func _apply_stage_targets(stage: int) -> void:
 	var target := _get_stage_target(stage)
 	var count: int = int(target["count"])
 	multimesh.visible_instance_count = clamp(count, 1, MAX_INSTANCES)
-	# Re-lay the cluster if count changed (cheap; runs once per stage-up).
+	# Re-lay the cluster (used as the morph=0 endpoint). For stages with a
+	# dedicated silhouette (morph=1) the cluster transforms become invisible
+	# but we still set them so the shader's MODEL_MATRIX math is well-formed.
 	_layout_cluster(count)
-	# Per-stage palette + rotation + signature — read from DataLoader if the
-	# autoload is available (smoke-tests run without it).
+	# Per-stage palette + rotation + signature + silhouette — read from
+	# DataLoader if the autoload is available (smoke-tests run without it).
 	_apply_stage_visuals(stage)
 
 # Pulls the per-stage visual entry (palette/rotation/signature) and updates
@@ -340,6 +586,13 @@ func _apply_stage_visuals(stage: int) -> void:
 		_signature = sig
 		_body_pulse = 0.0
 		_signature_offset = Vector3.ZERO
+	# Per-stage silhouette dispatch — re-writes INSTANCE_COLOR target_pos
+	# for the first `count` cells. Always re-runs: cheap (a few hundred
+	# Color writes), and a count change within the same shape still needs
+	# the new positions to fill the now-visible instances.
+	var kind: String = String(visual["shape_kind"])
+	var count: int = int(_get_stage_target(stage)["count"])
+	_apply_stage_shape(kind, count)
 
 func _get_stage_target(stage: int) -> Dictionary:
 	var idx: int = clamp(stage - 1, 0, STAGE_TARGETS.size() - 1)
