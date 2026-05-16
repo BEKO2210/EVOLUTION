@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-007 abgeschlossen: StageSystem)** |
+| Phase | **1 — Engine-Prototyp (P1-008 abgeschlossen: PrestigeSystem)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + 10 Autoloads + DataLoader + SaveSystem + TickSystem + ClickSystem + UpgradeSystem + StageSystem mit Tests (bis P1-007), Systeme folgen in P1-008..P1-013 |
+| Godot-Projekt | ✓ Skelett + 11 Autoloads + alle Daten/Save/Tick-Systeme + Click + Upgrade + Stage + Prestige mit Tests (bis P1-008), Systeme folgen in P1-009..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen sechs Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen sieben Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -158,6 +158,23 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - `recalc_stats` produziert korrektes DPS für Auto + Click-Power für Click
 - Meilenstein-Verdopplung wird in DPS reflektiert
 - `upgrade_purchased`-Signal liefert id + new_count + total_cost
+
+**`tests/test_prestige_system.gd`** — Soft-Reset + Evolutionspunkte + kompoundierender Multiplier:
+
+- `can_prestige()` false unter 1M Lifetime-DNA, true ab exakt 1M
+- `get_evolution_points_available()` Formel: 0/1/2/10/31 EP an 0/1M/4M/100M/1B
+- EP-Available subtraktiert bereits geclaimte Punkte (clamp bei 0)
+- `get_current_multiplier()` = `1.10^prestige_points` (1.0 / 1.10 / 2.59 für 0/1/10 Punkte)
+- `get_next_multiplier_after_prestige()` Preview-Funktion
+- `get_lifetime_dna_needed_for_total_points()` als Inverse für UI-Progress
+- `do_prestige()` returnt 0 bei ineligible, keine Side-Effekte
+- `do_prestige()` bei 1M: +1 EP, Multiplier → 1.10
+- `do_prestige()` wiped DNA, total_dna, stage, upgrade_counts, divisions
+- `do_prestige()` **preserved** `lifetime_dna` (EP-Währung) und `prestige_points` (kumulativ)
+- Multiplier kompoundiert über mehrere Prestiges (1.10 → 1.21 → 1.33...)
+- `UpgradeSystem.recalc_stats()` wendet `prestige_multiplier` auf DPS + Click-Power an
+- `state_reset` triggert `UpgradeSystem.recalc_stats()` (post-Prestige DPS reflektiert neuen Multiplier)
+- `recalc_multiplier()` idempotent + self-healing bei staler Multiplier-Persistenz
 
 **`tests/test_stage_system.gd`** — Stage-Progression (Threshold-Cross-Detection):
 

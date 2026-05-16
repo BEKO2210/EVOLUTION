@@ -42,6 +42,11 @@ func _ready() -> void:
 	# Autoload order in project.godot guarantees TickSystem is initialized
 	# before UpgradeSystem (UpgradeSystem comes after it).
 	TickSystem.logic_tick.connect(_on_logic_tick)
+	# After prestige (or any state-reset path), recompute derived stats
+	# so dps/click_power reflect the new prestige_multiplier and empty
+	# upgrade_counts. Without this, dps would stay at the pre-prestige
+	# value until the next buy.
+	GameState.state_reset.connect(_on_state_reset)
 	# Initial recalc so dps/click_power reflect any loaded save.
 	recalc_stats()
 
@@ -146,12 +151,16 @@ func buy_max(upgrade_id: String) -> int:
 
 ## Recompute GameState.dps and GameState.click_power from owned counts.
 ## Cheap — single pass over both upgrade tables (60 items in v1).
-## Pure function w.r.t. GameState.upgrade_counts; writes only dps & click_power.
+## Pure function w.r.t. GameState.upgrade_counts and GameState.prestige_multiplier;
+## writes only dps & click_power.
 ##
-## Phase-1 formula (research / achievement / mutation / prestige multipliers
-## come in P1-007..P1-009):
-##   dps         = sum over auto:  dps_base   * count * milestone_mult(count)
-##   click_power = 1 + sum click:  click_base * count * milestone_mult(count)
+## Phase-1 formula (research / achievement / mutation / stage-bonus
+## multipliers come in P1-009):
+##   dps         = (sum auto:  dps_base   * count * milestone_mult(count)) * prestige_mult
+##   click_power = (1 + sum click: click_base * count * milestone_mult(count)) * prestige_mult
+##
+## prestige_multiplier = 1.10^prestige_points (compounding; managed by
+## PrestigeSystem, never written from here).
 func recalc_stats() -> void:
 	if not DataLoader.is_loaded:
 		return
@@ -169,9 +178,12 @@ func recalc_stats() -> void:
 		if count == 0:
 			continue
 		click_total += float(u["click_power_base"]) * float(count) * get_milestone_multiplier(count)
-	GameState.dps = dps_total
-	GameState.click_power = click_total
-	stats_recalculated.emit(dps_total, click_total)
+	# Apply prestige multiplier last; defensively clamp to >= 1.0 so a
+	# corrupted save with multiplier=0 doesn't zero out the game.
+	var prestige: float = max(1.0, GameState.prestige_multiplier)
+	GameState.dps = dps_total * prestige
+	GameState.click_power = click_total * prestige
+	stats_recalculated.emit(GameState.dps, GameState.click_power)
 
 # ----------------------------------------------------------------------------
 # INTERNAL
@@ -181,6 +193,10 @@ func _on_logic_tick(dt: float) -> void:
 	# Single accumulation point: DPS -> DNA at 4 Hz.
 	if GameState.dps > 0.0 and dt > 0.0:
 		GameState.add_dna(GameState.dps * dt)
+
+func _on_state_reset() -> void:
+	# Prestige (or any wipe) zeros upgrade_counts; rebuild dps + click_power.
+	recalc_stats()
 
 func _get_upgrade_data(upgrade_id: String) -> Variant:
 	var u: Variant = DataLoader.get_upgrade_auto(upgrade_id)

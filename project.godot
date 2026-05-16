@@ -25,8 +25,13 @@ config/icon="res://icon.svg"
 ; Telemetry        : independent (stub today)
 ; TickSystem       : subscribes via signal, calls SaveSystem.save + reads DataLoader.balance
 ; ClickSystem      : reads GameState.click_power (derived), writes GameState.dna
+; PrestigeSystem   : reads/writes GameState.prestige_points + prestige_multiplier,
+;                    invokes GameState.reset_for_prestige() (-> state_reset signal).
+;                    Must come BEFORE UpgradeSystem so UpgradeSystem's
+;                    state_reset listener picks up the new multiplier on reset.
 ; UpgradeSystem    : reads DataLoader.upgrades_*, writes GameState.dna/dps/click_power/upgrade_counts,
-;                    subscribes to TickSystem.logic_tick for DPS accumulation
+;                    subscribes to TickSystem.logic_tick for DPS accumulation,
+;                    subscribes to GameState.state_reset to recalc after prestige
 ; StageSystem      : subscribes GameState.total_dna_changed + state_reset,
 ;                    reads DataLoader.stages, writes GameState.stage,
 ;                    runs recompute_stage() in _ready() to align loaded saves
@@ -38,6 +43,7 @@ SteamAPI="*res://scripts/autoload/steam_api.gd"
 Telemetry="*res://scripts/autoload/telemetry.gd"
 TickSystem="*res://scripts/autoload/tick_system.gd"
 ClickSystem="*res://scripts/autoload/click_system.gd"
+PrestigeSystem="*res://scripts/autoload/prestige_system.gd"
 UpgradeSystem="*res://scripts/autoload/upgrade_system.gd"
 StageSystem="*res://scripts/autoload/stage_system.gd"
 
