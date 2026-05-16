@@ -42,13 +42,21 @@ Abhängigkeiten und Platzhalter für geplante Integrationen.
 - **Status:** Initialer Pin in `.godot-version` ist `4.3-stable`. Bei Update auf neuere stabile Version: in ADR-0001 dokumentieren + `.godot-version` + `project.godot:config/features` synchron updaten.
 
 ### GodotSteam (Plugin / GDExtension)
-- **Verwendung:** **Geplant** — Steamworks-SDK-Integration für Achievements, Cloud-Save, Steam Input. Auswahl der Distribution-Form (GDExtension vs. Modul-Build) wird durch Spike P1-012 in Phase 1 final entschieden.
+- **Verwendung:** Geplant für Phase 2 (Vertical Slice) / Phase 5 (Release-Prep). Steamworks-SDK-Integration für Achievements, Cloud-Save, Steam Input, Rich Presence.
 - **Funktion:** Bindings zur Steamworks-API.
 - **Lizenz:** MIT License
-- **Copyright:** © GodotSteam contributors
+- **Copyright:** © CoaguCo Industries / GodotSteam contributors
 - **Quellen:**
   - Source: https://github.com/CoaguCo-Industries/GodotSteam
-- **Status:** Noch nicht integriert. Spike (P1-012) entscheidet vor Vertical-Slice-Commit.
+- **Distribution-Form:** **GDExtension** (kein eigener Engine-Build) — Spike-Ergebnis in `docs/decisions/ADR-0005-godotsteam-integration.md`.
+- **Status:** Phase 1 Spike (P1-012) abgeschlossen: `scripts/autoload/steam_api.gd` hat alle Hooks feature-detected; ohne installierte GDExtension läuft das Spiel im no-op-Modus.
+  Plugin-Files werden in Phase 2 ins Repo aufgenommen (`addons/godotsteam/`). Setup-Anleitung: `docs/steam/godotsteam-setup.md`.
+
+### Steamworks SDK (Valve)
+- **Verwendung:** Wird mit dem Spiel ausgeliefert (`steam_api64.dll` / `libsteam_api.so` / `libsteam_api.dylib`) — Pflicht für die GodotSteam-Integration.
+- **Lizenz:** Steamworks SDK Agreement — Distribution-Recht ist im Agreement explizit für Steam-veröffentlichte Spiele erteilt.
+- **Quellen:** https://partner.steamgames.com (Steamworks Partner Login erforderlich)
+- **Status:** Wird in Phase 2 mit der GodotSteam-Integration eingespielt.
 
 ### GUT (Godot Unit Test)
 - **Verwendung:** **Geplant** — Test-Framework für Phase-1-Unit-Tests (Save-System, Economy-Math, Data-Loader, Milestone-Logic).

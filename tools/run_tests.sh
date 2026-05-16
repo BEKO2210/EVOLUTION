@@ -29,6 +29,7 @@ TESTS=(
     tests/test_achievement_system.gd
     tests/test_bionexus_scene.gd
     tests/test_ui_scenes.gd
+    tests/test_steam_api.gd
 )
 
 FAIL=0

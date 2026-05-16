@@ -85,6 +85,9 @@ pnpm-debug.log*
 # Local content_builder runs leave generated files; keep their *config* in
 # git but ignore upload-logs and depot snapshots.
 steamworks_sdk/
+# Steam AppID file — local-only. Spacewar 480 for dev/test, real AppID
+# only ever lives on the build machine. See docs/steam/godotsteam-setup.md
+steam_appid.txt
 steam_content/
 *.vdf.local
 ContentBuilder/output/

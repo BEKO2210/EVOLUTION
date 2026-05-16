@@ -14,9 +14,9 @@ extends Control
 ##   P1-009 — AchievementSystem (declarative conditions, reward multipliers, persistence)
 ##   P1-010 — BioNexus shader port (GDShader + MultiMeshInstance3D + camera dolly)
 ##   P1-011 — Greybox UI (HUD, tabs, panels, click area wired to ClickSystem)
+##   P1-012 — GodotSteam spike (feature-detected; no-op without extension)
 ##
 ## Still to come:
-##   P1-012 — GodotSteam spike
 ##   P1-013 — Playtest sessions
 ##
 ## At boot we run a console smoke-test against every autoload so the developer
@@ -105,9 +105,14 @@ func _check_audio_manager() -> String:
 	return "AudioManager: OK (real impl in P1-011/Phase-2)"
 
 func _check_steam_api() -> String:
-	var avail: bool = SteamAPI.is_available
-	SteamAPI.set_achievement("noop_test")
-	return "SteamAPI: stub OK, available=%s (real impl in P1-012 spike)" % avail
+	# P1-012: feature-detected. Without GodotSteam GDExtension installed,
+	# every call is a safe no-op. See docs/steam/godotsteam-setup.md
+	# for activation steps + scenes/dev/steam_smoke_test.tscn for the
+	# manual integration test on real Steam hardware.
+	SteamAPI.set_achievement("noop_test")  # must not crash
+	if SteamAPI.has_extension:
+		return "SteamAPI: OK — GodotSteam extension detected (init pending)"
+	return "SteamAPI: OK — running in no-op mode (GodotSteam not installed; expected for Phase 1)"
 
 func _check_telemetry() -> String:
 	Telemetry.track("smoke_test_event", {"phase": 1})
