@@ -13,9 +13,9 @@ extends Node
 ##   P1-004 — SaveSystem with schema-version + migrations + checksum
 ##   P1-005 — TickSystem (logic 4 Hz, visual per-frame, periodic auto-save)
 ##   P1-006 — ClickSystem + UpgradeSystem (DPS accumulation + milestone math)
+##   P1-007 — StageSystem (threshold progression, stage_changed signal)
 ##
 ## Still to come:
-##   P1-007 — StageSystem
 ##   P1-008 — PrestigeSystem
 ##   P1-009 — AchievementSystem
 ##   P1-010 — BioNexus shader port (GLSL -> GDShader)
@@ -45,6 +45,7 @@ func _ready() -> void:
 	report.append(_check_telemetry())
 	report.append(_check_tick_system())
 	report.append(_check_click_and_upgrade())
+	report.append(_check_stage_system())
 
 	var summary: String = "\n".join(report)
 	print("[Evolution] Autoload smoke-test:\n%s" % summary)
@@ -133,6 +134,8 @@ func _check_click_and_upgrade() -> String:
 	#   GameState.dna = 200.0       -> dna (overwritten before buy)
 	#   UpgradeSystem.buy("auto_001") -> dna, upgrade_counts["auto_001"],
 	#                                    dps + click_power (via recalc_stats)
+	#   GameState.add_dna() side-effects (P1-007+): StageSystem may bump
+	#                                   GameState.stage on total_dna_changed
 	# We snapshot every one of those fields and restore them at the end.
 	# We also reset_combo() to clear ClickSystem's internal counter.
 	var snapshot: Dictionary = {
@@ -141,6 +144,7 @@ func _check_click_and_upgrade() -> String:
 		"lifetime_dna":    GameState.lifetime_dna,
 		"click_power":     GameState.click_power,
 		"dps":             GameState.dps,
+		"stage":           GameState.stage,
 		"total_clicks":    GameState.total_clicks,
 		"total_crits":     GameState.total_crits,
 		"upgrade_counts":  GameState.upgrade_counts.duplicate(true),
@@ -163,6 +167,7 @@ func _check_click_and_upgrade() -> String:
 	GameState.lifetime_dna   = snapshot["lifetime_dna"]
 	GameState.click_power    = snapshot["click_power"]
 	GameState.dps            = snapshot["dps"]
+	GameState.stage          = snapshot["stage"]
 	GameState.total_clicks   = snapshot["total_clicks"]
 	GameState.total_crits    = snapshot["total_crits"]
 	GameState.upgrade_counts = snapshot["upgrade_counts"]
@@ -175,3 +180,17 @@ func _check_click_and_upgrade() -> String:
 	if dps_after <= 0.0:
 		return "UpgradeSystem: FAIL (dps did not rise after buy)"
 	return "Click+Upgrade: OK — 3 clicks added DNA, auto_001 buy raised dps to %.2f/s" % dps_after
+
+func _check_stage_system() -> String:
+	# P1-007: StageSystem watches GameState.total_dna_changed. Verify the
+	# pure-function lookup matches the loaded stages.json without mutating
+	# any live state (no add_dna call here — pure check only).
+	if not StageSystem.has_stage(1):
+		return "StageSystem: FAIL (tier 1 missing)"
+	if not StageSystem.has_stage(30):
+		return "StageSystem: FAIL (tier 30 missing)"
+	# Spot-check: 25k DNA should be tier 3 per stages.json.
+	var tier_at_25k: int = StageSystem.get_stage_for_total_dna(25000.0)
+	if tier_at_25k != 3:
+		return "StageSystem: FAIL (25k DNA should be tier 3, got %d)" % tier_at_25k
+	return "StageSystem: OK — pure lookup matches stages.json (current stage=%d)" % GameState.stage
