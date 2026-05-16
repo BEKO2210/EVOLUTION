@@ -14,6 +14,18 @@ run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+; Order matters: GameState first (other systems reference it),
+; SaveSystem + DataLoader before AudioManager (which reads settings),
+; SteamAPI + Telemetry last (peripheral, opt-in).
+GameState="*res://scripts/autoload/game_state.gd"
+SaveSystem="*res://scripts/autoload/save_system.gd"
+DataLoader="*res://scripts/autoload/data_loader.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
+SteamAPI="*res://scripts/autoload/steam_api.gd"
+Telemetry="*res://scripts/autoload/telemetry.gd"
+
 [display]
 
 ; 1280x800 is the Steam Deck native resolution and our primary design target.
