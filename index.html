@@ -546,28 +546,50 @@
             margin: 4px 4px 6px;
             opacity: 0.85;
         }
+        /* Idle-Miner-style buy-mode strip. The whole strip is a pill segmented
+           control; each segment is wider than the original chips so the touch
+           target works on a phone and the active segment really POPS. NEXT is
+           the new mode — buys exactly enough to cross the next milestone. */
         .buy-select {
-            display: flex; gap: 4px;
-            background: rgba(255,255,255,0.04);
+            display: flex; gap: 0;
+            background: rgba(8, 11, 20, 0.55);
             border: 1px solid var(--line);
             border-radius: 99px;
-            padding: 2px;
+            padding: 3px;
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
         }
         .buy-btn {
             border: none;
             background: transparent;
             color: var(--text-dim);
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 3px 9px;
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 6px 12px;
+            min-width: 36px;
             border-radius: 99px;
             cursor: pointer;
-            transition: all 0.15s;
+            letter-spacing: 0.4px;
+            transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+        }
+        @media (hover: hover) {
+            .buy-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.04); }
         }
         .buy-btn.active {
-            background: var(--accent);
-            color: #000;
-            box-shadow: 0 0 10px rgba(0,255,163,0.4);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+            color: #001a10;
+            box-shadow: 0 4px 14px -4px rgba(0,255,163,0.55),
+                        0 0 0 1px rgba(255,255,255,0.18) inset;
+            text-shadow: 0 0 4px rgba(255,255,255,0.35);
+            transform: translateY(-1px);
+        }
+        /* NEXT/MAX get distinct tint so the player feels the difference
+           between "fixed quantity" and "smart" buy modes. */
+        .buy-btn[data-buy="next"].active,
+        .buy-btn[data-buy="max"].active {
+            background: linear-gradient(135deg, var(--gold) 0%, #ff9800 100%);
+            color: #1a0a00;
+            box-shadow: 0 4px 14px -4px rgba(255,210,74,0.7),
+                        0 0 0 1px rgba(255,255,255,0.18) inset;
         }
 
         /* Upgrade card */
@@ -1390,11 +1412,12 @@
 <div class="panel" id="panel-auto">
     <div class="panel-title">
         <span>Automatische Produktion</span>
-        <div class="buy-select">
+        <div class="buy-select" role="group" aria-label="Kaufmenge">
             <button class="buy-btn active" data-buy="1">×1</button>
             <button class="buy-btn" data-buy="10">×10</button>
             <button class="buy-btn" data-buy="100">×100</button>
-            <button class="buy-btn" data-buy="max">Max</button>
+            <button class="buy-btn" data-buy="next" title="Bis zum nächsten Meilenstein">Next</button>
+            <button class="buy-btn" data-buy="max" title="So viel wie möglich">Max</button>
         </div>
     </div>
     <div id="autoList"></div>
@@ -1403,11 +1426,12 @@
 <div class="panel hidden" id="panel-click">
     <div class="panel-title">
         <span>Klick-Power</span>
-        <div class="buy-select">
+        <div class="buy-select" role="group" aria-label="Kaufmenge">
             <button class="buy-btn active" data-buy="1">×1</button>
             <button class="buy-btn" data-buy="10">×10</button>
             <button class="buy-btn" data-buy="100">×100</button>
-            <button class="buy-btn" data-buy="max">Max</button>
+            <button class="buy-btn" data-buy="next" title="Bis zum nächsten Meilenstein">Next</button>
+            <button class="buy-btn" data-buy="max" title="So viel wie möglich">Max</button>
         </div>
     </div>
     <div id="clickList"></div>
@@ -1594,8 +1618,7 @@
 <script type="importmap">
 {
     "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
     }
 }
 </script>
@@ -1610,10 +1633,6 @@
      ~290px container. -->
 <script type="module">
 import * as THREE from 'three';
-import { EffectComposer }    from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass }        from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass }   from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass }        from 'three/addons/postprocessing/ShaderPass.js';
 
 // Adaptive instance cap. Low-core devices get a tighter ceiling so the scene
 // stays interactive even when the cluster reaches full population. The runtime
@@ -2330,14 +2349,12 @@ const renderer = new THREE.WebGLRenderer({
 const BASE_DPR = Math.min(window.devicePixelRatio || 1, MOBILE_UA ? 1.0 : 1.5);
 renderer.setPixelRatio(BASE_DPR);
 renderer.setClearColor(0x000000, 0);
-// Cinematic colour pipeline. ACES Filmic gives membrane glows the same kind
-// of "burning into the highlights" rolloff PS4 games use; without it the
-// additive blends blow out flat-white. outputColorSpace + the increased
-// toneMappingExposure together push the scene into HDR-friendly territory
-// so the upcoming UnrealBloomPass actually has something bright to extract.
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+// NOTE: post-processing (EffectComposer + UnrealBloom + custom finish pass)
+// was attempted here but produced a black canvas — the classic ACES /
+// composer / transparent-canvas interaction. Reverted to direct rendering
+// while we iterate on the buy UX. Bloom can come back in a follow-up using
+// the safer pattern (NoToneMapping at renderer level + tonemap in a final
+// pass, render targets with alpha:true, OutputPass at the end).
 // Lost-context recovery: WebGL contexts can be killed by the OS (especially
 // on low-end devices). Without these hooks, the canvas freezes silently and
 // the user thinks the page crashed. Now we suspend the loop, then resume.
@@ -2702,10 +2719,6 @@ function resize() {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     renderer.setSize(rect.width, rect.height, false);
-    if (typeof composer !== 'undefined' && composer) {
-        composer.setSize(rect.width, rect.height);
-        if (bloomPass) bloomPass.resolution.set(rect.width, rect.height);
-    }
     camera.aspect = rect.width / rect.height;
     camera.updateProjectionMatrix();
 }
@@ -2717,62 +2730,6 @@ if (typeof ResizeObserver !== 'undefined') {
 window.addEventListener('resize', resize);
 resize();
 
-// --- Post-processing pipeline ---------------------------------------------
-// EffectComposer chain: scene render -> UnrealBloom -> tiny vignette/CA pass.
-// This is the single biggest "PS4 look" win: the membrane fresnel + click
-// shockwaves bloom out into the surrounding fluid like real HDR highlights.
-// usePost gets flipped off by the Low quality preset because the bloom pass
-// alone roughly doubles per-frame GPU work.
-let usePost = true;
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
-composer.addPass(renderPass);
-// Bloom strength tuned so the additive cell glow lifts without smearing.
-// Threshold 0.55 means only highlights brighter than that bloom — the
-// fresnel rim + click flashes pop, the bulk membrane stays sharp.
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.85, 0.65, 0.55);
-composer.addPass(bloomPass);
-// Subtle vignette + chromatic-aberration finishing pass. Sits at the very
-// end of the chain. Strengths kept low — this is polish, not effect-of-the-
-// month spam. Looks like a lens, not a filter.
-const finishPass = new ShaderPass({
-    uniforms: {
-        tDiffuse: { value: null },
-        uVignette: { value: 0.32 },  // 0 = off, 1 = blackout corners
-        uCA:       { value: 0.6 },   // chromatic aberration radius factor
-        uTime:     { value: 0 },
-    },
-    vertexShader: `
-        varying vec2 vUv;
-        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-    `,
-    fragmentShader: `
-        uniform sampler2D tDiffuse;
-        uniform float uVignette;
-        uniform float uCA;
-        uniform float uTime;
-        varying vec2 vUv;
-        void main() {
-            vec2 c = vUv - 0.5;
-            float r = length(c);
-            // Chromatic aberration radius scales with distance from center —
-            // imitates a real fast lens. uCA is in pixels-of-1024 units.
-            float caStrength = uCA * 0.0035 * r;
-            vec2 dir = normalize(c + vec2(1e-6));
-            vec3 col;
-            col.r = texture2D(tDiffuse, vUv + dir * caStrength).r;
-            col.g = texture2D(tDiffuse, vUv).g;
-            col.b = texture2D(tDiffuse, vUv - dir * caStrength).b;
-            // Vignette: soft falloff, smoother than the typical pow curve.
-            float vig = smoothstep(0.95, 0.25, r);
-            col *= mix(1.0, vig, uVignette);
-            gl_FragColor = vec4(col, 1.0);
-        }
-    `,
-});
-finishPass.renderToScreen = true;
-composer.addPass(finishPass);
-
 // --- Public API ------------------------------------------------------------
 let lastStageApplied = 1;
 let bioPaused = false;
@@ -2781,23 +2738,9 @@ const BioNexus = {
         qualityScale = Math.max(0.1, Math.min(1.0, s));
         // Recompute target count with the new budget.
         targets = stageToTargets(lastStageApplied);
-        // Bloom strength scales with quality so Low-end devices still
-        // benefit from tone mapping but skip the expensive bloom blur.
-        usePost = qualityScale > 0.45;
-        if (bloomPass) {
-            bloomPass.strength = qualityScale > 0.8 ? 0.95
-                               : qualityScale > 0.5 ? 0.65
-                               : 0.0;
-            bloomPass.radius   = qualityScale > 0.8 ? 0.75 : 0.55;
-        }
-        if (finishPass) {
-            finishPass.uniforms.uVignette.value = qualityScale > 0.45 ? 0.32 : 0.0;
-            finishPass.uniforms.uCA.value       = qualityScale > 0.8  ? 0.6  : 0.0;
-        }
     },
     setPixelRatioScale(s) {
         renderer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
-        composer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
         resize();
     },
     setPaused(p) { bioPaused = !!p; },
@@ -3020,14 +2963,7 @@ const BioNexus = {
         }
         planktonGeo.attributes.position.needsUpdate = true;
 
-        // Route through EffectComposer (bloom + finish pass) on Mid/High,
-        // direct render on Low. usePost is wired by setQualityScale().
-        if (usePost && composer) {
-            finishPass.uniforms.uTime.value = time;
-            composer.render(dt);
-        } else {
-            renderer.render(scene, camera);
-        }
+        renderer.render(scene, camera);
     },
 
     resize,
@@ -3495,6 +3431,23 @@ function getMaxAffordable(u) {
     // n = log(1 + dna*(r-1)/start) / log(r)
     const n = Math.log(1 + game.dna * (r-1) / start) / Math.log(r);
     return Math.max(0, Math.floor(n));
+}
+// Idle-Miner "Next" mode: how many to buy to reach the next milestone tier.
+// If a player is at 7 owned, buying "Next" purchases 3 (gets them to 10 and
+// the ×2 bonus). At 100+ owned there is no next breakpoint — falls back to
+// the largest visible step (×10).
+function getNextMilestoneStep(u) {
+    const next = nextMilestone(u.count);
+    if (next == null) return 10;
+    return Math.max(1, next - u.count);
+}
+// Resolve game.buyMode into a concrete integer quantity for a given upgrade.
+// Used everywhere (display + execution) so the displayed amount and the
+// actual purchase always agree.
+function resolveBuyQuantity(u) {
+    if (game.buyMode === 'max')  return Math.max(1, getMaxAffordable(u));
+    if (game.buyMode === 'next') return getNextMilestoneStep(u);
+    return game.buyMode;
 }
 
 // =============================== BIONEXUS BRIDGE ============================
@@ -4011,9 +3964,7 @@ function buyClick(id) {
     renderAll();
 }
 function doBuy(u) {
-    let n = 1;
-    if (game.buyMode === 'max') n = getMaxAffordable(u);
-    else n = game.buyMode;
+    let n = resolveBuyQuantity(u);
     if (n <= 0) return;
     const cost = getBulkCost(u, n);
     if (game.dna < cost) {
@@ -4210,8 +4161,7 @@ function _refreshList(kind) {
     const state = _listState[kind];
     if (!state.built) { _buildList(kind); return; }
     const list = kind === 'auto' ? autoUpgrades : clickUpgrades;
-    const buyModeChanged = state.lastBuyMode !== game.buyMode;
-    if (buyModeChanged) state.lastBuyMode = game.buyMode;
+    state.lastBuyMode = game.buyMode;
     const now = Date.now();
     for (let i = 0; i < list.length; i++) {
         const u = list[i];
@@ -4221,27 +4171,26 @@ function _refreshList(kind) {
             if (i > 0 && list[i-1].count > 0) { _buildList(kind); return; }
             continue;
         }
-        // Affordability + displayed cost must agree. Previously the display
-        // showed the bulk price (e.g. "5B" for ×100) while the affordable
-        // class only required affording ONE upgrade — so users saw "5B"
-        // glowing green even when they had 50B, then got fewer than 100
-        // when they actually clicked. The new contract:
-        //   - In ×1 mode:    show single-cost, affordable iff dna >= cost
-        //   - In ×N mode:    show cost of N if you can afford all N (green);
-        //                    otherwise show what you'd actually buy + its
-        //                    cost (the doBuy() partial-buy code already
-        //                    handles the underflow at click time).
-        //   - In Max mode:   already shows the affordable count + its cost.
-        const requested = (game.buyMode === 'max') ? Math.max(1, getMaxAffordable(u)) : game.buyMode;
+        // Affordability + displayed cost must agree. Contract:
+        //   - ×1:   single cost, affordable iff dna >= cost
+        //   - ×N:   if you can afford all N, show its bulk cost (green);
+        //           otherwise show the affordable partial (matches what
+        //           doBuy will actually charge)
+        //   - Next: buys up to the next milestone breakpoint (10/25/50/100)
+        //   - Max:  shows the affordable max
+        const requested = resolveBuyQuantity(u);
         const requestedCost = getBulkCost(u, requested);
         let displayN = requested;
         let displayCost = requestedCost;
         let canAfford = game.dna >= requestedCost;
+        // For fixed quantities (×10/×100/Next) fall back to the affordable
+        // partial when the player can't pay the full ticket. Max already
+        // returns only what's affordable so it never enters this branch.
         if (!canAfford && game.buyMode !== 1 && game.buyMode !== 'max') {
             const afford = getMaxAffordable(u);
             if (afford > 0) {
-                displayN = afford;
-                displayCost = getBulkCost(u, afford);
+                displayN = Math.min(requested, afford);
+                displayCost = getBulkCost(u, displayN);
                 canAfford = true;
             }
         }
@@ -4411,13 +4360,13 @@ document.querySelectorAll('.tab').forEach(t => {
 });
 document.querySelectorAll('.buy-btn').forEach(b => {
     b.addEventListener('click', () => {
-        document.querySelectorAll('.buy-btn').forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
-        game.buyMode = b.dataset.buy === 'max' ? 'max' : parseInt(b.dataset.buy, 10);
-        // Sync all buy selectors
+        const mode = b.dataset.buy;
+        // 'max' and 'next' stay as strings; numeric modes parse to int.
+        game.buyMode = (mode === 'max' || mode === 'next') ? mode : parseInt(mode, 10);
+        // Sync every buy-selector instance (auto + click panels) to the
+        // same active mode so flipping in one panel persists across tabs.
         document.querySelectorAll('.buy-btn').forEach(x => {
-            if (x.dataset.buy === b.dataset.buy) x.classList.add('active');
-            else x.classList.remove('active');
+            x.classList.toggle('active', x.dataset.buy === mode);
         });
         renderAuto();
         renderClick();
