@@ -60,9 +60,19 @@ func _check_save_system() -> String:
 	return "SaveSystem: stub %s (real impl in P1-004)" % ("OK" if not stub_result else "UNEXPECTED")
 
 func _check_data_loader() -> String:
-	# Lookups against unloaded tables must return null without crashing.
-	var miss: Variant = DataLoader.get_stage("stage_001")
-	return "DataLoader: lookup-safe %s (real impl in P1-003)" % ("OK" if miss == null else "UNEXPECTED")
+	# P1-003: load_all() is invoked from DataLoader._ready() at boot.
+	# Verify it succeeded and the expected item counts are present.
+	if not DataLoader.is_loaded:
+		var errs: PackedStringArray = DataLoader.get_last_errors()
+		return "DataLoader: FAIL (%d errors, see console)" % errs.size()
+	return "DataLoader: OK — %d stages, %d auto, %d click, %d research, %d abilities, %d achievements" % [
+		DataLoader.stages.size(),
+		DataLoader.upgrades_auto.size(),
+		DataLoader.upgrades_click.size(),
+		DataLoader.research.size(),
+		DataLoader.abilities.size(),
+		DataLoader.achievements.size(),
+	]
 
 func _check_audio_manager() -> String:
 	# Setting volume on an undefined bus must not crash.

@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (gestartet, P1-001)** |
+| Phase | **1 — Engine-Prototyp (P1-003 abgeschlossen: Daten-Layer + Tests)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett vorhanden (P1-001), Systeme folgen in P1-002..P1-013 |
+| Godot-Projekt | ✓ Skelett + Autoloads + DataLoader+Tests (bis P1-003), Systeme folgen in P1-004..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -98,7 +98,25 @@ Er wird **nicht** zum Steam-Release gepusht. Die finale Engine-Implementation is
 1. Korrekte Version via [Godot-Downloads](https://godotengine.org/download/archive/) installieren, ODER
 2. Wenn du bewusst eine neuere Version testest: in einem separaten Branch `project.godot:config/features` und `.godot-version` updaten, vor PR mit dem Original-Pin auf Kompatibilität testen.
 
-Aktueller Stand P1-001: das Projekt ist ein **leeres Skelett**. Alle Game-Systeme sind no-op. Real-Code landet in P1-002 bis P1-013 (siehe `production/phase-1-backlog.md`).
+Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler DataLoader. F5 zeigt im Bootstrap-Label, wieviele Stages, Upgrades, Forschungen, Abilities und Achievements aus `data/*.json` geladen wurden. Real-Spielsysteme (Save, Tick, Click, Stage, Prestige, Achievement, Shader, UI, Steam) landen in P1-004 bis P1-013.
+
+### Tests lokal laufen lassen
+
+```bash
+./tools/run_tests.sh
+```
+
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell läuft der DataLoader-Validierungstest:
+
+- alle 7 JSON-Files laden
+- erwartete Item-Counts (30/30/30/12/4/27)
+- keine duplizierten IDs
+- monotone Stage-Thresholds, stage_001 startet bei 0
+- alle Enum-Werte aus dem Allowlist (research effects, ability kinds, achievement conditions/rewards)
+- `unlock_after_id`-Verkettungen intakt
+- Lookups treffen + Misses returnen sauber null
+
+Exit-Code 0 = grün, 1 = Failure (Details im Output).
 
 ---
 
