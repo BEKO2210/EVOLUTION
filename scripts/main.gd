@@ -1,10 +1,6 @@
-extends Node
+extends Control
 ##
-## Main bootstrap entry point.
-##
-## Runs a smoke-test against every autoload on _ready() so the bootstrap
-## label gives an immediate visual confirmation that the engine layer is
-## healthy.
+## Main scene controller.
 ##
 ## Phase 1 ticket history (delivered):
 ##   P1-001 — project skeleton
@@ -17,24 +13,40 @@ extends Node
 ##   P1-008 — PrestigeSystem (lifetime-DNA threshold, EP formula, compounding multiplier)
 ##   P1-009 — AchievementSystem (declarative conditions, reward multipliers, persistence)
 ##   P1-010 — BioNexus shader port (GDShader + MultiMeshInstance3D + camera dolly)
+##   P1-011 — Greybox UI (HUD, tabs, panels, click area wired to ClickSystem)
 ##
 ## Still to come:
-##   P1-011 — Greybox UI (tabs, panels, upgrade cards) + audio bus layout
 ##   P1-012 — GodotSteam spike
 ##   P1-013 — Playtest sessions
+##
+## At boot we run a console smoke-test against every autoload so the developer
+## can spot a regression immediately without needing to navigate the UI.
 
-@onready var _bootstrap_label: Label = $BootstrapHud/Label
+@onready var _click_area: Button = $VBox/CellRow/ClickArea
 
 func _ready() -> void:
-	var engine_version: String = Engine.get_version_info().string
-	print("[Evolution] Phase 1 boot — engine %s" % engine_version)
-
-	# --- Autoload smoke-test (running total through P1-005) -----------------
-	# Each autoload must be reachable and call-safe.
-	# Disable auto-save immediately so this smoke-test never writes to a
-	# real player save slot.
+	# Disable auto-save up front so the smoke-test never writes to a real
+	# player save slot.
 	TickSystem.set_auto_save_enabled(false)
 
+	_run_boot_smoke_test()
+
+	# Wire the giant "click the cell" button.
+	if _click_area:
+		_click_area.pressed.connect(_on_click_pressed)
+
+func _on_click_pressed() -> void:
+	# Forward to ClickSystem; everything else (DNA add, combo, crit, achievement
+	# checks, signal fanout) happens via the autoload pipeline.
+	ClickSystem.register_click(_click_area.get_global_rect().get_center())
+
+# ----------------------------------------------------------------------------
+# Boot-time smoke-test (console output only — UI is the real user surface)
+# ----------------------------------------------------------------------------
+
+func _run_boot_smoke_test() -> void:
+	var engine_version: String = Engine.get_version_info().string
+	print("[Evolution] Phase 1 boot — engine %s" % engine_version)
 	var report: PackedStringArray = []
 	report.append("engine %s" % engine_version)
 	report.append(_check_game_state())
@@ -49,30 +61,21 @@ func _ready() -> void:
 	report.append(_check_prestige_system())
 	report.append(_check_achievement_system())
 	report.append(_check_bionexus())
-
-	var summary: String = "\n".join(report)
-	print("[Evolution] Autoload smoke-test:\n%s" % summary)
-	if _bootstrap_label:
-		_bootstrap_label.text = "EVOLUTION — Phase 1\nautoloads OK\n%s" % summary
+	print("[Evolution] Autoload smoke-test:\n  - %s" % "\n  - ".join(report))
 
 # --- Smoke checks -----------------------------------------------------------
 
 func _check_game_state() -> String:
-	# Acceptance criterion: GameState.dna += 1 läuft ohne Error.
 	var before: float = GameState.dna
 	GameState.dna += 1.0
 	var ok: bool = GameState.dna == before + 1.0
-	# Roll back so the test doesn't leak state into the actual run.
 	GameState.dna = before
 	return "GameState: %s (dna mutation works)" % ("OK" if ok else "FAIL")
 
 func _check_save_system() -> String:
-	# P1-004: SaveSystem is real. Smoke-test a round-trip in a test slot
-	# without touching the player's real saves (slots 0, 1, 2).
 	const SMOKE_SLOT: int = SaveSystem.SLOT_LOCAL_3
 	var pre_existed: bool = SaveSystem.slot_exists(SMOKE_SLOT)
 	if pre_existed:
-		# Don't overwrite an existing real save in slot 3 — skip the smoke test.
 		return "SaveSystem: skipped (slot 3 in use)"
 	var save_ok: bool = SaveSystem.save(SMOKE_SLOT)
 	if not save_ok:
@@ -84,8 +87,6 @@ func _check_save_system() -> String:
 	return "SaveSystem: OK — round-trip in slot 3 (auto-cleaned)"
 
 func _check_data_loader() -> String:
-	# P1-003: load_all() is invoked from DataLoader._ready() at boot.
-	# Verify it succeeded and the expected item counts are present.
 	if not DataLoader.is_loaded:
 		var errs: PackedStringArray = DataLoader.get_last_errors()
 		return "DataLoader: FAIL (%d errors, see console)" % errs.size()
@@ -99,53 +100,29 @@ func _check_data_loader() -> String:
 	]
 
 func _check_audio_manager() -> String:
-	# Setting volume on an undefined bus must not crash.
 	AudioManager.set_bus_volume(AudioManager.BUS_MUSIC, 0.5)
 	AudioManager.play_sfx("click_standard")
 	return "AudioManager: OK (real impl in P1-011/Phase-2)"
 
 func _check_steam_api() -> String:
-	# is_available is false out-of-band; stub calls must be no-op.
 	var avail: bool = SteamAPI.is_available
 	SteamAPI.set_achievement("noop_test")
 	return "SteamAPI: stub OK, available=%s (real impl in P1-012 spike)" % avail
 
 func _check_telemetry() -> String:
-	# Default opt-in is false, track() must silently drop.
 	Telemetry.track("smoke_test_event", {"phase": 1})
 	return "Telemetry: stub OK, opt_in=%s (real impl in P1-009/Phase-3)" % Telemetry.opt_in
 
 func _check_tick_system() -> String:
-	# P1-005: TickSystem starts running on boot, reading intervals from
-	# data/balance_constants.json. Just verify the configuration is sane.
 	var logic_s: float = TickSystem.get_logic_interval_s()
 	var save_s: float = TickSystem.get_save_interval_s()
-	var running: bool = TickSystem.is_running()
-	if not running:
+	if not TickSystem.is_running():
 		return "TickSystem: FAIL (not running)"
-	return "TickSystem: OK — logic %.2fs / save %.0fs (auto-save off for smoke-test)" % [logic_s, save_s]
+	return "TickSystem: OK — logic %.2fs / save %.0fs" % [logic_s, save_s]
 
 func _check_click_and_upgrade() -> String:
-	# P1-006: simulate a few clicks + a buy, verify GameState changed
-	# accordingly. CRITICAL: this is a boot-time diagnostic; it must NOT
-	# corrupt a player's loaded save. Full snapshot-before / restore-after.
-	#
-	# Mutations caused below:
-	#   ClickSystem.register_click() -> dna, total_dna, lifetime_dna,
-	#                                   total_clicks, total_crits (maybe),
-	#                                   internal combo counter
-	#   GameState.dna = 200.0       -> dna (overwritten before buy)
-	#   UpgradeSystem.buy("auto_001") -> dna, upgrade_counts["auto_001"],
-	#                                    dps + click_power (via recalc_stats,
-	#                                    which also reads prestige_multiplier)
-	#   GameState.add_dna() side-effects (P1-007+): StageSystem may bump
-	#                                   GameState.stage on total_dna_changed
-	# We snapshot every potentially-touched field and restore at the end.
-	# prestige_points/multiplier are not modified here but are included
-	# defensively so a hypothetical future addition can't silently corrupt
-	# meta-progression. Same for achievements_unlocked (P1-009+) — the
-	# smoke run drives signals that AchievementSystem subscribes to, so a
-	# borderline-case achievement could theoretically unlock here.
+	# Snapshot everything we might touch so we leave no smoke-test footprint
+	# on a player's loaded save.
 	var snapshot: Dictionary = {
 		"dna":                    GameState.dna,
 		"total_dna":              GameState.total_dna,
@@ -160,19 +137,16 @@ func _check_click_and_upgrade() -> String:
 		"upgrade_counts":         GameState.upgrade_counts.duplicate(true),
 		"achievements_unlocked":  GameState.achievements_unlocked.duplicate(true),
 	}
-	# Drive the smoke check from a known click_power baseline so result text
-	# is predictable; snapshot restores it after.
 	GameState.click_power = 1.0
 	var clicks_before: int = GameState.total_clicks
 	ClickSystem.register_click()
 	ClickSystem.register_click()
 	ClickSystem.register_click()
 	var clicks_added: int = GameState.total_clicks - clicks_before
-	# Buy 1 auto_001 (cost 60). Give DNA for it.
 	GameState.dna = 200.0
 	var bought: bool = UpgradeSystem.buy("auto_001")
 	var dps_after: float = GameState.dps
-	# --- Restore exactly what we snapshotted ---
+	# Restore exactly what we snapshotted.
 	GameState.dna                   = snapshot["dna"]
 	GameState.total_dna             = snapshot["total_dna"]
 	GameState.lifetime_dna          = snapshot["lifetime_dna"]
@@ -186,7 +160,7 @@ func _check_click_and_upgrade() -> String:
 	GameState.upgrade_counts        = snapshot["upgrade_counts"]
 	GameState.achievements_unlocked = snapshot["achievements_unlocked"]
 	ClickSystem.reset_combo()
-	UpgradeSystem.recalc_stats()  # rebuild dps/click_power from restored counts
+	UpgradeSystem.recalc_stats()
 	if clicks_added != 3:
 		return "ClickSystem: FAIL (added %d clicks, expected 3)" % clicks_added
 	if not bought:
@@ -196,26 +170,14 @@ func _check_click_and_upgrade() -> String:
 	return "Click+Upgrade: OK — 3 clicks added DNA, auto_001 buy raised dps to %.2f/s" % dps_after
 
 func _check_stage_system() -> String:
-	# P1-007: StageSystem watches GameState.total_dna_changed. Verify the
-	# pure-function lookup matches the loaded stages.json without mutating
-	# any live state (no add_dna call here — pure check only).
-	if not StageSystem.has_stage(1):
-		return "StageSystem: FAIL (tier 1 missing)"
-	if not StageSystem.has_stage(30):
-		return "StageSystem: FAIL (tier 30 missing)"
-	# Spot-check: 25k DNA should be tier 3 per stages.json.
+	if not StageSystem.has_stage(1) or not StageSystem.has_stage(30):
+		return "StageSystem: FAIL (stage 1 or 30 missing)"
 	var tier_at_25k: int = StageSystem.get_stage_for_total_dna(25000.0)
 	if tier_at_25k != 3:
 		return "StageSystem: FAIL (25k DNA should be tier 3, got %d)" % tier_at_25k
 	return "StageSystem: OK — pure lookup matches stages.json (current stage=%d)" % GameState.stage
 
 func _check_prestige_system() -> String:
-	# P1-008: PrestigeSystem queries are pure (don't mutate state).
-	# Use those to verify the formula is wired without touching player progress.
-	# - At lifetime_dna = 0, should NOT be eligible.
-	# - get_lifetime_dna_needed_for_total_points(1) should be 1M (threshold).
-	# - get_current_multiplier() should equal GameState.prestige_multiplier
-	#   after recalc (PrestigeSystem._ready() ran one already).
 	var needed_for_1: float = PrestigeSystem.get_lifetime_dna_needed_for_total_points(1)
 	if abs(needed_for_1 - 1_000_000.0) > 0.001:
 		return "PrestigeSystem: FAIL (1 EP needs 1M, got %f)" % needed_for_1
@@ -225,25 +187,19 @@ func _check_prestige_system() -> String:
 	]
 
 func _check_achievement_system() -> String:
-	# P1-009: pure queries only. Verify the table size and the reward
-	# aggregation are wired without changing achievement state.
 	var total: int = AchievementSystem.get_total_count()
 	if total != 27:
 		return "AchievementSystem: FAIL (expected 27 achievements, got %d)" % total
-	var unlocked: int = AchievementSystem.get_unlocked_count()
-	# get_reward_multipliers should always return a Dictionary with the
-	# expected identity values when nothing is unlocked.
 	var bundle: Dictionary = AchievementSystem.get_reward_multipliers()
 	if not bundle.has("dps_mult") or not bundle.has("click_mult") or not bundle.has("all_mult"):
 		return "AchievementSystem: FAIL (reward bundle missing required keys)"
-	return "AchievementSystem: OK — %d/%d unlocked, reward bundle wired" % [unlocked, total]
+	return "AchievementSystem: OK — %d/%d unlocked, reward bundle wired" % [
+		AchievementSystem.get_unlocked_count(), total
+	]
 
 func _check_bionexus() -> String:
-	# P1-010: verify the BioNexus shader and scene files exist and parse.
-	# Actual rendering requires a GPU surface; tests/test_bionexus_scene.gd
-	# covers the headless-reachable parts.
 	if not ResourceLoader.exists("res://shaders/bionexus_cell.gdshader"):
 		return "BioNexus: FAIL (shader file missing)"
 	if not ResourceLoader.exists("res://scenes/cell/bionexus.tscn"):
 		return "BioNexus: FAIL (scene file missing)"
-	return "BioNexus: OK — shader + scene wired (4000 instance cap, MultiMesh + GDShader)"
+	return "BioNexus: OK — shader + scene wired"
