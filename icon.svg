@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Placeholder game icon, Phase 1. Final icon comes from Wave-2 icon work
+     (post P1-001). Single proto-cell with nucleus, in brand accent colour,
+     on the standard dark background. 128x128 base for Godot editor display. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="60%">
+      <stop offset="0%"  stop-color="#0a0e1a"/>
+      <stop offset="100%" stop-color="#05070d"/>
+    </radialGradient>
+    <radialGradient id="cell" cx="40%" cy="35%" r="60%">
+      <stop offset="0%"  stop-color="#e9fff4"/>
+      <stop offset="22%" stop-color="#aaffd9"/>
+      <stop offset="60%" stop-color="#00ffa3"/>
+      <stop offset="92%" stop-color="#006e4a"/>
+      <stop offset="100%" stop-color="#003a26"/>
+    </radialGradient>
+    <radialGradient id="nuc" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"  stop-color="rgba(255,255,255,0.85)"/>
+      <stop offset="55%" stop-color="rgba(140,255,210,0.45)"/>
+      <stop offset="100%" stop-color="rgba(0,70,45,0.55)"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" fill="url(#bg)"/>
+  <!-- Cell -->
+  <circle cx="64" cy="64" r="44" fill="url(#cell)" stroke="rgba(0,80,50,0.55)" stroke-width="1"/>
+  <!-- Specular highlight -->
+  <ellipse cx="48" cy="46" rx="20" ry="12" fill="rgba(255,255,255,0.35)"/>
+  <!-- Nucleus -->
+  <circle cx="68" cy="68" r="14" fill="url(#nuc)"/>
+</svg>

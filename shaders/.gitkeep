@@ -1,0 +1,5 @@
+# shaders/ — GDShader files.
+# Populated by P1-010:
+#   bionexus_cell.gdshader    — main cell instanced render (GLSL -> GDShader port)
+#   bionexus_plankton.gdshader — background plankton particles
+#   ui_glow.gdshader          — UI hover/active glow

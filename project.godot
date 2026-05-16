@@ -1,0 +1,36 @@
+; Godot 4 project configuration.
+;
+; Single source of truth for engine settings. Phase 1 — P1-001 (project setup).
+; All values that change later (input mappings, autoloads, audio bus layout)
+; will be added in subsequent tickets.
+
+config_version=5
+
+[application]
+
+config/name="Evolution"
+config/description="Meditative idle-clicker — from a single proto-molecule to cosmic transcendence. Pre-Production phase."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+config/icon="res://icon.svg"
+
+[display]
+
+; 1280x800 is the Steam Deck native resolution and our primary design target.
+; UI scales up cleanly for desktop monitors via stretch mode.
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=0
+
+[input]
+
+; Input actions are added in P1-002 / P1-006 once the click system exists.
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
+textures/canvas_textures/default_texture_filter=2
+environment/defaults/default_clear_color=Color(0.0196078, 0.027451, 0.0509804, 1)

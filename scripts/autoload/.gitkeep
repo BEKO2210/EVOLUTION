@@ -1,0 +1,8 @@
+# scripts/autoload/ — Singleton autoloads, registered in project.godot.
+# Populated by P1-002:
+#   game_state.gd   — single source of truth for all game values
+#   save_system.gd  — JSON IO, schema migrations, cloud sync (ADR-0003)
+#   data_loader.gd  — loads data/*.json (ADR-0004)
+#   audio_manager.gd — bus routing, music layering
+#   steam_api.gd    — GodotSteam wrapper, no-op if Steam absent
+#   telemetry.gd    — opt-in event pipeline

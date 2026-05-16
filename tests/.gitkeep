@@ -1,0 +1,3 @@
+# tests/ — GUT (Godot Unit Test) test files.
+# Populated by P1-003 (test_data_loader), P1-004 (test_save_migration),
+# P1-006 (test_economy_math), P1-009 (test_milestone_system).

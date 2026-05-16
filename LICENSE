@@ -1,0 +1,41 @@
+MIT License
+
+Copyright (c) 2026 BEKO2210 / Evolution Game
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+
+Scope of this license:
+
+This MIT License covers all source code in this repository (.gd, .gdshader,
+.tscn, .tres files, plus the HTML/Three.js validation prototype in
+index.html). It explicitly does NOT cover the following, which retain
+separate licensing terms:
+
+  - Visual game assets (icons, fonts, images) — see ATTRIBUTIONS.md
+  - Audio assets (music, SFX) — see ATTRIBUTIONS.md
+  - Game-design documents, story texts, world-building texts in docs/ — all
+    rights reserved by the studio
+  - Brand identity, game title, logo — all rights reserved by the studio
+  - Localization translations (when added in Phase 3) — separately licensed
+    per translator agreement, see ATTRIBUTIONS.md
+
+Third-party dependencies (Godot Engine, GodotSteam, Three.js, etc.) retain
+their own licenses as documented in ATTRIBUTIONS.md.
