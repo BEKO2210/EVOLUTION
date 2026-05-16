@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "extracted_from": "index.html const abilities (rev 7318ce6)",
+  "notes": "Active player-triggered abilities with cooldowns. kind=='instant' applies once (mitose adds 120 seconds of DPS as DNA). kind=='dpsMult'/'clickMult' apply a temporary stacking multiplier for dur_ms. kind=='autoclick' fires N automated clicks over dur_ms. svg_icon mirrors the wave-1 SVG-icon registry in the HTML prototype.",
+  "items": [
+    {
+      "id": "ability_001",
+      "legacy_id": "photo",
+      "legacy_name_de": "Photo",
+      "legacy_desc_de": "DPS x8 for 15s",
+      "name_key": "ability.ability_001.name",
+      "desc_key": "ability.ability_001.desc",
+      "svg_icon": "ico-sun",
+      "kind": "dps_multiplier",
+      "multiplier": 8.0,
+      "duration_ms": 15000,
+      "cooldown_ms": 75000
+    },
+    {
+      "id": "ability_002",
+      "legacy_id": "adrena",
+      "legacy_name_de": "Adrena",
+      "legacy_desc_de": "Click x20 for 10s",
+      "name_key": "ability.ability_002.name",
+      "desc_key": "ability.ability_002.desc",
+      "svg_icon": "ico-adrena",
+      "kind": "click_multiplier",
+      "multiplier": 20.0,
+      "duration_ms": 10000,
+      "cooldown_ms": 50000
+    },
+    {
+      "id": "ability_003",
+      "legacy_id": "mitose",
+      "legacy_name_de": "Mitose",
+      "legacy_desc_de": "Instant: +2 minutes of DPS as DNA",
+      "name_key": "ability.ability_003.name",
+      "desc_key": "ability.ability_003.desc",
+      "svg_icon": "ico-mitose",
+      "kind": "instant_dps_seconds",
+      "instant_dps_seconds": 120,
+      "duration_ms": 0,
+      "cooldown_ms": 240000
+    },
+    {
+      "id": "ability_004",
+      "legacy_id": "frenzy",
+      "legacy_name_de": "Frenzy",
+      "legacy_desc_de": "30 automated clicks in 3s",
+      "name_key": "ability.ability_004.name",
+      "desc_key": "ability.ability_004.desc",
+      "svg_icon": "ico-frenzy",
+      "kind": "autoclick_burst",
+      "autoclick_count": 30,
+      "duration_ms": 3000,
+      "cooldown_ms": 120000
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "extracted_from": "index.html (rev 7318ce6) — constants COST_GROWTH, MILESTONES, PRESTIGE_THRESHOLD, MAX_DIVISIONS_VISUAL, getDivisionCost/Bonus, getAutoSynergy/ClickSynergy, getCritChance/Mult, getComboTimeWindow/MaxBase, offline cap in loadGame(), setInterval(gameTick, 250), setInterval(saveGame, 15000), mutation/golden/dna-drop spawn intervals",
+  "notes": "Single source of truth for all global balance values. Game logic must NOT hardcode these — load from this file at boot via the Godot DataLoader autoload (see docs/decisions/ADR-0004). Adjusting any value here changes balance without code changes.",
+  "economy": {
+    "cost_growth": 1.15,
+    "milestone_thresholds": [10, 25, 50, 100],
+    "milestone_multiplier": 2.0,
+    "auto_synergy_per_owned": 0.005,
+    "click_synergy_per_owned": 0.003
+  },
+  "prestige": {
+    "lifetime_dna_threshold": 1000000,
+    "base_multiplier_per_point": 1.10,
+    "evolution_point_formula": "floor(sqrt(lifetime_dna / 1000000))"
+  },
+  "division": {
+    "base_cost_dna": 250000,
+    "cost_growth_per_division": 8.0,
+    "bonus_per_division": 1.08,
+    "max_visible_daughters_power": 6
+  },
+  "crit": {
+    "base_chance": 0.05,
+    "base_multiplier": 5.0,
+    "max_chance": 0.95
+  },
+  "combo": {
+    "base_max_multiplier": 3.0,
+    "time_window_ms": 1500,
+    "ramp_start_clicks": 3,
+    "ramp_end_clicks": 30,
+    "click_count_cap": 60
+  },
+  "offline_progression": {
+    "default_efficiency": 0.5,
+    "max_efficiency_with_research_012": 1.0,
+    "cap_seconds": 14400
+  },
+  "tick_rates": {
+    "logic_tick_interval_ms": 250,
+    "logic_tick_hz": 4,
+    "visual_tick_hz_target": 60,
+    "save_interval_ms": 15000,
+    "single_tick_gain_cap_seconds": 60
+  },
+  "golden_cells": {
+    "mean_spawn_interval_ms": 120000,
+    "despawn_ms": 10000,
+    "reward_base_dps_seconds": 30,
+    "reward_base_click_power_seconds": 15
+  },
+  "mutations": {
+    "mean_spawn_interval_ms": 420000
+  },
+  "dna_drops": {
+    "min_interval_ms": 60000,
+    "max_extra_interval_ms": 60000,
+    "lifetime_ms": 8000,
+    "reward_dps_seconds": 10,
+    "reward_click_power_count": 5
+  },
+  "bionexus_visual_cap": {
+    "max_instances": 4000,
+    "comment": "Hard cap for InstancedMesh / MultiMeshInstance3D. Adaptive per Quality-Preset in Godot."
+  }
+}

@@ -1,0 +1,148 @@
+# =============================================================================
+# Evolution — .gitattributes
+# Text-Normalisierung + Binärasset-Markierung.
+# LFS-Filter sind vorbereitet als Kommentar, aber NICHT aktiviert — sobald
+# Git LFS im Repo aktiviert ist (`git lfs install` + `git lfs track`),
+# Kommentar-Markierung entfernen.
+# =============================================================================
+
+# ---------- Default: auto-detect, normalize line-endings ----------
+* text=auto eol=lf
+
+# ---------- Text formats — explicit ----------
+*.md          text eol=lf
+*.txt         text eol=lf
+*.json        text eol=lf
+*.yaml        text eol=lf
+*.yml         text eol=lf
+*.csv         text eol=lf
+*.xml         text eol=lf
+*.html        text eol=lf
+*.css         text eol=lf
+*.js          text eol=lf
+*.ts          text eol=lf
+*.sh          text eol=lf
+*.py          text eol=lf
+
+# ---------- Godot 4.x text formats ----------
+# .tscn/.tres/.godot must be text-mode (set in project.godot:
+#   [editor_settings]
+#   filesystem/scene_format=0  # = TEXT
+# )
+*.tscn        text eol=lf
+*.tres        text eol=lf
+*.gd          text eol=lf
+*.gdshader    text eol=lf
+*.gdshaderinc text eol=lf
+*.cfg         text eol=lf
+project.godot text eol=lf
+export_presets.cfg text eol=lf
+
+# ---------- Diff hints for Godot files ----------
+*.gd          diff=gdscript
+*.gdshader    diff=glsl
+*.gdshaderinc diff=glsl
+
+# ---------- Binary asset markers (mark as binary, do NOT line-end normalize) ----------
+# Bilder
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.bmp         binary
+*.tga         binary
+*.webp        binary
+*.ico         binary
+*.icns        binary
+
+# SVG ist eigentlich Text, aber wir versionieren oft optimierte Build-Outputs
+# zusammen mit Source-SVGs. SVG bleibt Text damit Diffs lesbar bleiben.
+*.svg         text eol=lf
+
+# Audio
+*.ogg         binary
+*.wav         binary
+*.flac        binary
+*.mp3         binary
+*.aac         binary
+*.m4a         binary
+*.opus        binary
+
+# Video
+*.mp4         binary
+*.mov         binary
+*.webm        binary
+*.mkv         binary
+
+# Fonts
+*.ttf         binary
+*.otf         binary
+*.woff        binary
+*.woff2       binary
+
+# Godot binaries
+*.gltf        text eol=lf
+*.glb         binary
+*.fbx         binary
+*.blend       binary
+*.dae         text eol=lf
+
+# Archives + Engine-Builds
+*.zip         binary
+*.tar         binary
+*.tar.gz      binary
+*.7z          binary
+*.exe         binary
+*.dll         binary
+*.so          binary
+*.dylib       binary
+*.dmg         binary
+*.app         binary
+*.apk         binary
+*.aab         binary
+*.pck         binary
+
+# Steam capsule sources (preserved as PSD/AI/etc. would be binary)
+# Werden in assets/steam/ erst in Phase 2 / 5 angelegt.
+*.psd         binary
+*.ai          binary
+*.afdesign    binary
+*.afphoto     binary
+
+# Spreadsheets (Balance-Sheet)
+*.xlsx        binary
+*.ods         binary
+
+# ---------- Git LFS — PREPARED but NOT YET ACTIVE ----------
+# Sobald `git lfs install` lokal eingerichtet wurde und das Repo LFS-fähig
+# ist, folgenden Block aktivieren (Hash davor entfernen). Vorher würde der
+# `filter`-Befehl ohne LFS-Setup einen Fehler werfen und beim Klon Probleme
+# verursachen.
+#
+# *.png         filter=lfs diff=lfs merge=lfs -text
+# *.jpg         filter=lfs diff=lfs merge=lfs -text
+# *.psd         filter=lfs diff=lfs merge=lfs -text
+# *.ai          filter=lfs diff=lfs merge=lfs -text
+# *.afdesign    filter=lfs diff=lfs merge=lfs -text
+# *.afphoto     filter=lfs diff=lfs merge=lfs -text
+# *.ogg         filter=lfs diff=lfs merge=lfs -text
+# *.wav         filter=lfs diff=lfs merge=lfs -text
+# *.flac        filter=lfs diff=lfs merge=lfs -text
+# *.mp4         filter=lfs diff=lfs merge=lfs -text
+# *.mov         filter=lfs diff=lfs merge=lfs -text
+# *.webm        filter=lfs diff=lfs merge=lfs -text
+# *.glb         filter=lfs diff=lfs merge=lfs -text
+# *.fbx         filter=lfs diff=lfs merge=lfs -text
+# *.blend       filter=lfs diff=lfs merge=lfs -text
+# *.pck         filter=lfs diff=lfs merge=lfs -text
+# *.zip         filter=lfs diff=lfs merge=lfs -text
+# *.7z          filter=lfs diff=lfs merge=lfs -text
+# *.xlsx        filter=lfs diff=lfs merge=lfs -text
+
+# ---------- Linguist hints (für GitHub Sprach-Detection) ----------
+*.gd          linguist-language=GDScript
+*.gdshader    linguist-language=GLSL
+data/**       linguist-generated=false
+data/**       linguist-detectable=true
+docs/**       linguist-documentation=true
+production/** linguist-documentation=true
