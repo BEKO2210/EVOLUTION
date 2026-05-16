@@ -26,7 +26,7 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-011 abgeschlossen: Greybox UI)** |
+| Phase | **1 — Engine-Prototyp (P1-012 abgeschlossen: GodotSteam-Spike, nur Playtest fehlt)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen zehn Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen elf Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -158,6 +158,15 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - `recalc_stats` produziert korrektes DPS für Auto + Click-Power für Click
 - Meilenstein-Verdopplung wird in DPS reflektiert
 - `upgrade_purchased`-Signal liefert id + new_count + total_cost
+
+**`tests/test_steam_api.gd`** — Feature-detected Steam-Integration (no-op-Pfad ohne GodotSteam):
+
+- Extension-Detection meldet false in Test-Env (kein GodotSteam installiert)
+- `is_available` / `app_id` / `steam_user_name` haben korrekte Defaults
+- `initialize()` returnt false + emit `initialized(false, app_id)` ohne Extension
+- `set_achievement()`, `cloud_save_text()`, `set_rich_presence()` no-op sauber
+- `cloud_load_text()` returnt leeren String
+- Konstanten korrekt: `SPACEWAR_APP_ID = 480`, `STEAM_SINGLETON_NAME = "Steam"`
 
 **`tests/test_ui_scenes.gd`** — Greybox UI (HUD + Tabs + Panels + Cards, headless-reachable):
 
