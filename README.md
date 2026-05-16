@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-006 abgeschlossen: ClickSystem + UpgradeSystem)** |
+| Phase | **1 — Engine-Prototyp (P1-007 abgeschlossen: StageSystem)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + 9 Autoloads + DataLoader + SaveSystem + TickSystem + ClickSystem + UpgradeSystem mit Tests (bis P1-006), Systeme folgen in P1-007..P1-013 |
+| Godot-Projekt | ✓ Skelett + 10 Autoloads + DataLoader + SaveSystem + TickSystem + ClickSystem + UpgradeSystem + StageSystem mit Tests (bis P1-007), Systeme folgen in P1-008..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen fünf Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen sechs Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -158,6 +158,20 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - `recalc_stats` produziert korrektes DPS für Auto + Click-Power für Click
 - Meilenstein-Verdopplung wird in DPS reflektiert
 - `upgrade_purchased`-Signal liefert id + new_count + total_cost
+
+**`tests/test_stage_system.gd`** — Stage-Progression (Threshold-Cross-Detection):
+
+- `get_stage_for_total_dna` pure function exakt an Schwellen (0/999/1000/24999/25000/...)
+- Saturiert bei Tier 30 für sehr große DNA-Mengen
+- `get_threshold_for_tier` korrekt + `INF` für out-of-range
+- `has_stage(tier)` true/false
+- `add_dna` über Threshold emittiert genau ein `stage_changed`-Signal
+- `add_dna` unter Threshold emittiert keinen Signal
+- Mehrere Thresholds in einem `add_dna` → **EIN** Signal mit Ziel-Tier
+- `spend_dna` reduziert Stage NICHT
+- `reset_for_prestige` setzt Stage zurück auf 1
+- `recompute_stage()` idempotent
+- `recompute_stage()` korrigiert inkonsistente Saves (stage stale, total_dna hoch)
 
 **`tests/test_click_system.gd`** — Klick-Loop mit Combo + Crit:
 

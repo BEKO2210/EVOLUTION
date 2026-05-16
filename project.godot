@@ -27,6 +27,9 @@ config/icon="res://icon.svg"
 ; ClickSystem      : reads GameState.click_power (derived), writes GameState.dna
 ; UpgradeSystem    : reads DataLoader.upgrades_*, writes GameState.dna/dps/click_power/upgrade_counts,
 ;                    subscribes to TickSystem.logic_tick for DPS accumulation
+; StageSystem      : subscribes GameState.total_dna_changed + state_reset,
+;                    reads DataLoader.stages, writes GameState.stage,
+;                    runs recompute_stage() in _ready() to align loaded saves
 GameState="*res://scripts/autoload/game_state.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
 DataLoader="*res://scripts/autoload/data_loader.gd"
@@ -36,6 +39,7 @@ Telemetry="*res://scripts/autoload/telemetry.gd"
 TickSystem="*res://scripts/autoload/tick_system.gd"
 ClickSystem="*res://scripts/autoload/click_system.gd"
 UpgradeSystem="*res://scripts/autoload/upgrade_system.gd"
+StageSystem="*res://scripts/autoload/stage_system.gd"
 
 [display]
 

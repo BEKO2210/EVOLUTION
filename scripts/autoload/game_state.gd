@@ -21,6 +21,10 @@ extends Node
 # SIGNALS
 # ----------------------------------------------------------------------------
 signal dna_changed(new_dna: float, delta: float)
+## Fires only when total_dna grows (never on spend). StageSystem subscribes
+## to this rather than dna_changed so it doesn't re-evaluate thresholds on
+## every spend (and so stage cannot drift downward).
+signal total_dna_changed(new_total_dna: float, delta: float)
 signal stage_changed(new_stage: int, old_stage: int)
 signal upgrade_count_changed(upgrade_id: String, new_count: int)
 signal achievement_unlocked(achievement_id: String)
@@ -106,8 +110,10 @@ func _ready() -> void:
 # PUBLIC API — minimal helpers callable from systems
 # ----------------------------------------------------------------------------
 
-## Add DNA, update lifetime trackers, emit signal.
+## Add DNA, update lifetime trackers, emit signals.
 ## Real systems use this so achievement triggers + dna_changed fire consistently.
+## Emits both dna_changed (current spendable) and total_dna_changed (run total)
+## so subscribers can pick the right one.
 func add_dna(amount: float) -> void:
 	if amount == 0.0:
 		return
@@ -115,6 +121,7 @@ func add_dna(amount: float) -> void:
 	total_dna += amount
 	lifetime_dna += amount
 	dna_changed.emit(dna, amount)
+	total_dna_changed.emit(total_dna, amount)
 
 ## Subtract DNA. Returns true if successful, false if insufficient funds.
 func spend_dna(amount: float) -> bool:

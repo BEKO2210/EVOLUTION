@@ -144,6 +144,7 @@ func _reset_state() -> void:
 	GameState.lifetime_dna = 0.0
 	GameState.click_power = 1.0
 	GameState.dps = 0.0
+	GameState.stage = 1
 	GameState.total_clicks = 0
 	GameState.total_crits = 0
 	GameState.upgrade_counts = {}

@@ -237,6 +237,7 @@ func _reset_game_state() -> void:
 	GameState.lifetime_dna = 0.0
 	GameState.click_power = 1.0
 	GameState.dps = 0.0
+	GameState.stage = 1
 	GameState.upgrade_counts = {}
 
 func _assert(cond: bool, msg: String) -> void:

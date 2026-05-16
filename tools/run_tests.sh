@@ -24,6 +24,7 @@ TESTS=(
     tests/test_tick_system.gd
     tests/test_upgrade_system.gd
     tests/test_click_system.gd
+    tests/test_stage_system.gd
 )
 
 FAIL=0
