@@ -1594,7 +1594,8 @@
 <script type="importmap">
 {
     "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
 }
 </script>
@@ -1609,6 +1610,10 @@
      ~290px container. -->
 <script type="module">
 import * as THREE from 'three';
+import { EffectComposer }    from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }        from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }   from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }        from 'three/addons/postprocessing/ShaderPass.js';
 
 // Adaptive instance cap. Low-core devices get a tighter ceiling so the scene
 // stays interactive even when the cluster reaches full population. The runtime
@@ -2325,6 +2330,14 @@ const renderer = new THREE.WebGLRenderer({
 const BASE_DPR = Math.min(window.devicePixelRatio || 1, MOBILE_UA ? 1.0 : 1.5);
 renderer.setPixelRatio(BASE_DPR);
 renderer.setClearColor(0x000000, 0);
+// Cinematic colour pipeline. ACES Filmic gives membrane glows the same kind
+// of "burning into the highlights" rolloff PS4 games use; without it the
+// additive blends blow out flat-white. outputColorSpace + the increased
+// toneMappingExposure together push the scene into HDR-friendly territory
+// so the upcoming UnrealBloomPass actually has something bright to extract.
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 // Lost-context recovery: WebGL contexts can be killed by the OS (especially
 // on low-end devices). Without these hooks, the canvas freezes silently and
 // the user thinks the page crashed. Now we suspend the loop, then resume.
@@ -2689,6 +2702,10 @@ function resize() {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     renderer.setSize(rect.width, rect.height, false);
+    if (typeof composer !== 'undefined' && composer) {
+        composer.setSize(rect.width, rect.height);
+        if (bloomPass) bloomPass.resolution.set(rect.width, rect.height);
+    }
     camera.aspect = rect.width / rect.height;
     camera.updateProjectionMatrix();
 }
@@ -2700,6 +2717,62 @@ if (typeof ResizeObserver !== 'undefined') {
 window.addEventListener('resize', resize);
 resize();
 
+// --- Post-processing pipeline ---------------------------------------------
+// EffectComposer chain: scene render -> UnrealBloom -> tiny vignette/CA pass.
+// This is the single biggest "PS4 look" win: the membrane fresnel + click
+// shockwaves bloom out into the surrounding fluid like real HDR highlights.
+// usePost gets flipped off by the Low quality preset because the bloom pass
+// alone roughly doubles per-frame GPU work.
+let usePost = true;
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+// Bloom strength tuned so the additive cell glow lifts without smearing.
+// Threshold 0.55 means only highlights brighter than that bloom — the
+// fresnel rim + click flashes pop, the bulk membrane stays sharp.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.85, 0.65, 0.55);
+composer.addPass(bloomPass);
+// Subtle vignette + chromatic-aberration finishing pass. Sits at the very
+// end of the chain. Strengths kept low — this is polish, not effect-of-the-
+// month spam. Looks like a lens, not a filter.
+const finishPass = new ShaderPass({
+    uniforms: {
+        tDiffuse: { value: null },
+        uVignette: { value: 0.32 },  // 0 = off, 1 = blackout corners
+        uCA:       { value: 0.6 },   // chromatic aberration radius factor
+        uTime:     { value: 0 },
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uVignette;
+        uniform float uCA;
+        uniform float uTime;
+        varying vec2 vUv;
+        void main() {
+            vec2 c = vUv - 0.5;
+            float r = length(c);
+            // Chromatic aberration radius scales with distance from center —
+            // imitates a real fast lens. uCA is in pixels-of-1024 units.
+            float caStrength = uCA * 0.0035 * r;
+            vec2 dir = normalize(c + vec2(1e-6));
+            vec3 col;
+            col.r = texture2D(tDiffuse, vUv + dir * caStrength).r;
+            col.g = texture2D(tDiffuse, vUv).g;
+            col.b = texture2D(tDiffuse, vUv - dir * caStrength).b;
+            // Vignette: soft falloff, smoother than the typical pow curve.
+            float vig = smoothstep(0.95, 0.25, r);
+            col *= mix(1.0, vig, uVignette);
+            gl_FragColor = vec4(col, 1.0);
+        }
+    `,
+});
+finishPass.renderToScreen = true;
+composer.addPass(finishPass);
+
 // --- Public API ------------------------------------------------------------
 let lastStageApplied = 1;
 let bioPaused = false;
@@ -2708,9 +2781,23 @@ const BioNexus = {
         qualityScale = Math.max(0.1, Math.min(1.0, s));
         // Recompute target count with the new budget.
         targets = stageToTargets(lastStageApplied);
+        // Bloom strength scales with quality so Low-end devices still
+        // benefit from tone mapping but skip the expensive bloom blur.
+        usePost = qualityScale > 0.45;
+        if (bloomPass) {
+            bloomPass.strength = qualityScale > 0.8 ? 0.95
+                               : qualityScale > 0.5 ? 0.65
+                               : 0.0;
+            bloomPass.radius   = qualityScale > 0.8 ? 0.75 : 0.55;
+        }
+        if (finishPass) {
+            finishPass.uniforms.uVignette.value = qualityScale > 0.45 ? 0.32 : 0.0;
+            finishPass.uniforms.uCA.value       = qualityScale > 0.8  ? 0.6  : 0.0;
+        }
     },
     setPixelRatioScale(s) {
         renderer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
+        composer.setPixelRatio(BASE_DPR * Math.max(0.5, Math.min(1.0, s)));
         resize();
     },
     setPaused(p) { bioPaused = !!p; },
@@ -2933,7 +3020,14 @@ const BioNexus = {
         }
         planktonGeo.attributes.position.needsUpdate = true;
 
-        renderer.render(scene, camera);
+        // Route through EffectComposer (bloom + finish pass) on Mid/High,
+        // direct render on Low. usePost is wired by setQualityScale().
+        if (usePost && composer) {
+            finishPass.uniforms.uTime.value = time;
+            composer.render(dt);
+        } else {
+            renderer.render(scene, camera);
+        }
     },
 
     resize,
@@ -4116,7 +4210,6 @@ function _refreshList(kind) {
     const state = _listState[kind];
     if (!state.built) { _buildList(kind); return; }
     const list = kind === 'auto' ? autoUpgrades : clickUpgrades;
-    // Buy-mode changed? Rebuild bulk-label visibility once.
     const buyModeChanged = state.lastBuyMode !== game.buyMode;
     if (buyModeChanged) state.lastBuyMode = game.buyMode;
     const now = Date.now();
@@ -4124,35 +4217,56 @@ function _refreshList(kind) {
         const u = list[i];
         const row = state.rows[i];
         if (!row) continue;
-        // Locked rows: unlock if predecessor is now bought (requires rebuild).
         if (row.classList.contains('locked')) {
             if (i > 0 && list[i-1].count > 0) { _buildList(kind); return; }
             continue;
         }
-        let n = (game.buyMode === 'max') ? Math.max(1, getMaxAffordable(u)) : game.buyMode;
-        const cost = getBulkCost(u, n);
-        const canAfford = game.dna >= getCost(u);
+        // Affordability + displayed cost must agree. Previously the display
+        // showed the bulk price (e.g. "5B" for ×100) while the affordable
+        // class only required affording ONE upgrade — so users saw "5B"
+        // glowing green even when they had 50B, then got fewer than 100
+        // when they actually clicked. The new contract:
+        //   - In ×1 mode:    show single-cost, affordable iff dna >= cost
+        //   - In ×N mode:    show cost of N if you can afford all N (green);
+        //                    otherwise show what you'd actually buy + its
+        //                    cost (the doBuy() partial-buy code already
+        //                    handles the underflow at click time).
+        //   - In Max mode:   already shows the affordable count + its cost.
+        const requested = (game.buyMode === 'max') ? Math.max(1, getMaxAffordable(u)) : game.buyMode;
+        const requestedCost = getBulkCost(u, requested);
+        let displayN = requested;
+        let displayCost = requestedCost;
+        let canAfford = game.dna >= requestedCost;
+        if (!canAfford && game.buyMode !== 1 && game.buyMode !== 'max') {
+            const afford = getMaxAffordable(u);
+            if (afford > 0) {
+                displayN = afford;
+                displayCost = getBulkCost(u, afford);
+                canAfford = true;
+            }
+        }
         row.classList.toggle('affordable', canAfford);
         const pulse = u._milestoneAt && (now - u._milestoneAt < 900);
         row.classList.toggle('milestone-pulse', !!pulse);
         const costEl = row.querySelector('[data-role="cost"]');
         if (costEl) {
-            costEl.textContent = fmt(cost);
+            costEl.textContent = fmt(displayCost);
             costEl.classList.toggle('no-afford', !canAfford);
         }
-        if (buyModeChanged) {
-            const bulkEl = row.querySelector('[data-role="bulk"]');
-            if (bulkEl) {
-                if (game.buyMode !== 1) {
-                    bulkEl.textContent = `kauft ${n}`;
-                    bulkEl.style.display = '';
-                } else {
-                    bulkEl.style.display = 'none';
-                }
+        // Bulk label: show "kauft N" whenever a non-×1 mode is active.
+        // Also flag a partial buy with "N/M" so the player sees the
+        // discount from the requested quantity at a glance.
+        const bulkEl = row.querySelector('[data-role="bulk"]');
+        if (bulkEl) {
+            if (game.buyMode === 1) {
+                bulkEl.style.display = 'none';
+            } else if (displayN === requested) {
+                bulkEl.textContent = `kauft ${displayN}`;
+                bulkEl.style.display = '';
+            } else {
+                bulkEl.textContent = `kauft ${displayN}/${requested}`;
+                bulkEl.style.display = '';
             }
-        } else if (game.buyMode === 'max') {
-            const bulkEl = row.querySelector('[data-role="bulk"]');
-            if (bulkEl) bulkEl.textContent = `kauft ${n}`;
         }
     }
 }
