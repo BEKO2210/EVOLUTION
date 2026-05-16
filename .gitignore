@@ -1,0 +1,111 @@
+# =============================================================================
+# Evolution — .gitignore
+# Prepared for Godot 4.x (Phase 1+) — currently the repo only holds the HTML
+# prototype + docs, but these rules are ready for when the Godot project
+# lands.
+# =============================================================================
+
+# ---------- Godot 4.x ----------
+# Engine-generated cache. Safe to ignore; Godot rebuilds on open.
+.godot/
+.import/
+
+# Per-user editor settings (workspace layout, debugger filters).
+# Project-level editor settings are intentionally tracked.
+*.import
+!project.godot
+!export_presets.cfg
+!default_env.tres
+!default_bus_layout.tres
+
+# Build/export output (set in export_presets to write here).
+build/
+exports/
+dist/
+
+# Crash dumps
+godot_crash_*.log
+
+# ---------- OS noise ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---------- Editor / IDE ----------
+.idea/
+.vscode/
+*.code-workspace
+*.iml
+.vs/
+*.swp
+*.swo
+*~
+.netrwhist
+
+# JetBrains-specific Godot plugin caches
+.shelf/
+
+# ---------- Python tooling (for tools/ scripts) ----------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.python-version
+
+# ---------- Node tooling (potential future use, e.g. localization scripts) ----------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- Build/CI scratch ----------
+*.log
+*.tmp
+*.temp
+*.bak
+.coverage
+.tox/
+.cache/
+.pytest_cache/
+
+# ---------- Steamworks ----------
+# Local content_builder runs leave generated files; keep their *config* in
+# git but ignore upload-logs and depot snapshots.
+steamworks_sdk/
+steam_content/
+*.vdf.local
+ContentBuilder/output/
+ContentBuilder/scripts/depot_*.vdf.local
+
+# Secrets / local-only env
+.env
+.env.local
+.env.*.local
+secrets.json
+*.pem
+*.key
+
+# ---------- macOS-specific Godot exports ----------
+*.dmg
+
+# ---------- Windows-specific Godot exports ----------
+*.exe.manifest
+
+# Generated docs (e.g. GUT test reports)
+test-results/
+coverage/
+
+# Don't ignore important Godot config files even if patterns above hit
+!*.gd
+!*.tscn
+!*.tres
+!*.gdshader
+!*.gdshaderinc
