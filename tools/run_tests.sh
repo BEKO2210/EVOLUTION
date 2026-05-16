@@ -28,6 +28,7 @@ TESTS=(
     tests/test_prestige_system.gd
     tests/test_achievement_system.gd
     tests/test_bionexus_scene.gd
+    tests/test_ui_scenes.gd
 )
 
 FAIL=0

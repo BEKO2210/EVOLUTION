@@ -1,0 +1,44 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0evo1um1panel"]
+
+[ext_resource type="Script" path="res://scripts/ui/panel_meta.gd" id="1_meta"]
+
+[node name="PanelMeta" type="ScrollContainer"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_meta")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="StagesGroup" type="PanelContainer" parent="VBox"]
+
+[node name="StagesVBox" type="VBoxContainer" parent="VBox/StagesGroup"]
+theme_override_constants/separation = 4
+
+[node name="StageLabel" type="Label" parent="VBox/StagesGroup/StagesVBox"]
+text = "Stage: 1"
+
+[node name="LifetimeLabel" type="Label" parent="VBox/StagesGroup/StagesVBox"]
+text = "Lifetime-DNA: 0"
+
+[node name="ClicksLabel" type="Label" parent="VBox/StagesGroup/StagesVBox"]
+text = "Klicks: 0"
+
+[node name="PrestigeGroup" type="PanelContainer" parent="VBox"]
+
+[node name="PrestigeVBox" type="VBoxContainer" parent="VBox/PrestigeGroup"]
+theme_override_constants/separation = 6
+
+[node name="MultLabel" type="Label" parent="VBox/PrestigeGroup/PrestigeVBox"]
+text = "Multiplier: ×1.00"
+
+[node name="EpLabel" type="Label" parent="VBox/PrestigeGroup/PrestigeVBox"]
+text = "EP verfügbar: 0"
+
+[node name="NextLabel" type="Label" parent="VBox/PrestigeGroup/PrestigeVBox"]
+text = "Benötigt 1M Lifetime-DNA für nächste EP"
+
+[node name="PrestigeButton" type="Button" parent="VBox/PrestigeGroup/PrestigeVBox"]
+text = "Prestige (keine EP)"
+disabled = true

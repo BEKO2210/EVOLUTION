@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0evo1up1panel"]
+
+[ext_resource type="Script" path="res://scripts/ui/panel_upgrades.gd" id="1_panel"]
+
+[node name="PanelUpgrades" type="ScrollContainer"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_panel")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(0, 0)
+size_flags_horizontal = 3
+theme_override_constants/separation = 6

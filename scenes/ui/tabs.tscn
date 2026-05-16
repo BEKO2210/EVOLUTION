@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0evo1ut1abs"]
+
+[ext_resource type="Script" path="res://scripts/ui/tab_controller.gd" id="1_tabs"]
+
+[node name="Tabs" type="VBoxContainer"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_tabs")
+
+[node name="TabContainer" type="TabContainer" parent="."]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+tabs_position = 0
