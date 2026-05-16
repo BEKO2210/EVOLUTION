@@ -184,6 +184,7 @@ func _reset_state() -> void:
 	GameState.prestige_points = 0
 	GameState.prestige_multiplier = 1.0
 	GameState.upgrade_counts = {}
+	GameState.achievements_unlocked = {}
 
 func _assert(cond: bool, msg: String) -> void:
 	if cond:

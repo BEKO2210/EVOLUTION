@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-008 abgeschlossen: PrestigeSystem)** |
+| Phase | **1 — Engine-Prototyp (P1-009 abgeschlossen: AchievementSystem)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + 11 Autoloads + alle Daten/Save/Tick-Systeme + Click + Upgrade + Stage + Prestige mit Tests (bis P1-008), Systeme folgen in P1-009..P1-013 |
+| Godot-Projekt | ✓ Skelett + 12 Autoloads + alle Daten/Save/Tick-Systeme + Click + Upgrade + Stage + Prestige + Achievement mit Tests (bis P1-009), Systeme folgen in P1-010..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen sieben Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen acht Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -158,6 +158,20 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - `recalc_stats` produziert korrektes DPS für Auto + Click-Power für Click
 - Meilenstein-Verdopplung wird in DPS reflektiert
 - `upgrade_purchased`-Signal liefert id + new_count + total_cost
+
+**`tests/test_achievement_system.gd`** — Deklarative Achievements + Reward-Multiplier:
+
+- Initial-State: 0 unlocked, 27 total
+- 10 Klicks → `achievement_001` (click10) unlock + Signal feuert
+- Re-Trigger ist idempotent (gleiches Signal nicht erneut)
+- `lifetime_dna >= 1000` → `achievement_006` (dna1k) unlock
+- `stage >= 3` → `achievement_011` (stage3) unlock
+- `prestige_points >= 1` → `achievement_024` (prestige1) unlock
+- Alle auto upgrades owned → `achievement_026` (auto30)
+- Alle click upgrades owned → `achievement_027` (click30)
+- `get_reward_multipliers()` aggregiert korrekt (einzeln + gestapelt)
+- Achievement-Reward fließt in `UpgradeSystem.recalc_stats` (dps × 1.03 + all × 1.01)
+- `check_all()` idempotent (zweiter Aufruf = 0 neue)
 
 **`tests/test_prestige_system.gd`** — Soft-Reset + Evolutionspunkte + kompoundierender Multiplier:
 

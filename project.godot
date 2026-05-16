@@ -35,6 +35,11 @@ config/icon="res://icon.svg"
 ; StageSystem      : subscribes GameState.total_dna_changed + state_reset,
 ;                    reads DataLoader.stages, writes GameState.stage,
 ;                    runs recompute_stage() in _ready() to align loaded saves
+; AchievementSystem: subscribes GameState/UpgradeSystem/ClickSystem/SaveSystem,
+;                    reads DataLoader.achievements, writes GameState.achievements_unlocked,
+;                    emits GameState.achievement_unlocked, triggers
+;                    UpgradeSystem.recalc_stats so reward multipliers apply.
+;                    Must come LAST — subscribes signals from everyone above.
 GameState="*res://scripts/autoload/game_state.gd"
 SaveSystem="*res://scripts/autoload/save_system.gd"
 DataLoader="*res://scripts/autoload/data_loader.gd"
@@ -46,6 +51,7 @@ ClickSystem="*res://scripts/autoload/click_system.gd"
 PrestigeSystem="*res://scripts/autoload/prestige_system.gd"
 UpgradeSystem="*res://scripts/autoload/upgrade_system.gd"
 StageSystem="*res://scripts/autoload/stage_system.gd"
+AchievementSystem="*res://scripts/autoload/achievement_system.gd"
 
 [display]
 
