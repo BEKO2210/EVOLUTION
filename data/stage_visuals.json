@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "notes": "Per-Stage-Visuals (palette + rotation + signature). Godot-only file — HTML-Prototyp hat sein eigenes STAGE_PALETTES inline in index.html (rev d244083). Hier 1:1 gespiegelt fuer Tiers 1-9; Tiers 10-30 thematisch erweitert. Pflichtfelder pro item: stage_id (string), color_membrane / color_organ / color_glow (Hex-Strings), rotation_x/y/z (rad/s float), signature (string aus Allowlist).",
+  "signature_allowlist": [
+    "plasma", "flow", "basepair", "throb", "breathe",
+    "swim", "tumble", "hunt", "glide", "shimmer", "none"
+  ],
+  "items": [
+    { "stage_id": "stage_001", "color_membrane": "#fff5b0", "color_organ": "#ffd24a", "color_glow": "#ffae42", "rotation_x": 0.00, "rotation_y": 0.00, "rotation_z": 0.00, "signature": "plasma" },
+    { "stage_id": "stage_002", "color_membrane": "#ff5da2", "color_organ": "#ff8a3d", "color_glow": "#ff8fc8", "rotation_x": 0.00, "rotation_y": 0.55, "rotation_z": 0.00, "signature": "flow" },
+    { "stage_id": "stage_003", "color_membrane": "#4fd1ff", "color_organ": "#ffd24a", "color_glow": "#7df3ff", "rotation_x": 0.00, "rotation_y": 0.32, "rotation_z": 0.00, "signature": "basepair" },
+    { "stage_id": "stage_004", "color_membrane": "#ab46e0", "color_organ": "#ff5da2", "color_glow": "#dc6bff", "rotation_x": 0.06, "rotation_y": 0.18, "rotation_z": 0.00, "signature": "throb" },
+    { "stage_id": "stage_005", "color_membrane": "#ffb86b", "color_organ": "#ffd24a", "color_glow": "#ffcb88", "rotation_x": 0.00, "rotation_y": 0.10, "rotation_z": 0.00, "signature": "breathe" },
+    { "stage_id": "stage_006", "color_membrane": "#39e0b8", "color_organ": "#4fd1ff", "color_glow": "#7df3ff", "rotation_x": 0.00, "rotation_y": 0.00, "rotation_z": 0.00, "signature": "swim" },
+    { "stage_id": "stage_007", "color_membrane": "#8b6dff", "color_organ": "#c79dff", "color_glow": "#aa88ff", "rotation_x": 0.13, "rotation_y": 0.22, "rotation_z": 0.07, "signature": "tumble" },
+    { "stage_id": "stage_008", "color_membrane": "#b6ff4a", "color_organ": "#fff36a", "color_glow": "#d4ff9c", "rotation_x": 0.00, "rotation_y": 0.06, "rotation_z": 0.04, "signature": "hunt" },
+    { "stage_id": "stage_009", "color_membrane": "#62e9ff", "color_organ": "#a0f4ff", "color_glow": "#c7f9ff", "rotation_x": 0.00, "rotation_y": 0.18, "rotation_z": 0.00, "signature": "glide" },
+
+    { "stage_id": "stage_010", "color_membrane": "#7fdf6c", "color_organ": "#ffd24a", "color_glow": "#b4ff8a", "rotation_x": 0.00, "rotation_y": 0.08, "rotation_z": 0.00, "signature": "breathe" },
+    { "stage_id": "stage_011", "color_membrane": "#5ac8a8", "color_organ": "#ff8fc8", "color_glow": "#9affe0", "rotation_x": 0.04, "rotation_y": 0.05, "rotation_z": 0.02, "signature": "breathe" },
+    { "stage_id": "stage_012", "color_membrane": "#3fb6c4", "color_organ": "#ff5da2", "color_glow": "#9affe0", "rotation_x": 0.00, "rotation_y": 0.30, "rotation_z": 0.00, "signature": "hunt" },
+    { "stage_id": "stage_013", "color_membrane": "#a8c068", "color_organ": "#ffe080", "color_glow": "#c8ffef", "rotation_x": 0.00, "rotation_y": 0.05, "rotation_z": 0.00, "signature": "glide" },
+    { "stage_id": "stage_014", "color_membrane": "#c98a3a", "color_organ": "#ffb84a", "color_glow": "#ffd28a", "rotation_x": 0.04, "rotation_y": 0.18, "rotation_z": 0.00, "signature": "throb" },
+
+    { "stage_id": "stage_015", "color_membrane": "#5fa5c8", "color_organ": "#c8e0ff", "color_glow": "#88ccff", "rotation_x": 0.00, "rotation_y": 0.12, "rotation_z": 0.04, "signature": "swim" },
+    { "stage_id": "stage_016", "color_membrane": "#6cc8a0", "color_organ": "#ffd28a", "color_glow": "#a8e8c8", "rotation_x": 0.00, "rotation_y": 0.08, "rotation_z": 0.00, "signature": "breathe" },
+    { "stage_id": "stage_017", "color_membrane": "#8c9858", "color_organ": "#ffd24a", "color_glow": "#d0cfff", "rotation_x": 0.05, "rotation_y": 0.04, "rotation_z": 0.03, "signature": "tumble" },
+    { "stage_id": "stage_018", "color_membrane": "#c87c4a", "color_organ": "#ffe080", "color_glow": "#ffd28a", "rotation_x": 0.02, "rotation_y": 0.20, "rotation_z": 0.00, "signature": "glide" },
+    { "stage_id": "stage_019", "color_membrane": "#a8704a", "color_organ": "#ffaa5a", "color_glow": "#ffc888", "rotation_x": 0.00, "rotation_y": 0.06, "rotation_z": 0.00, "signature": "breathe" },
+
+    { "stage_id": "stage_020", "color_membrane": "#b08858", "color_organ": "#d04a4a", "color_glow": "#ffaa88", "rotation_x": 0.00, "rotation_y": 0.05, "rotation_z": 0.00, "signature": "breathe" },
+    { "stage_id": "stage_021", "color_membrane": "#d86a3a", "color_organ": "#b8842a", "color_glow": "#ffaa6a", "rotation_x": 0.00, "rotation_y": 0.10, "rotation_z": 0.00, "signature": "plasma" },
+    { "stage_id": "stage_022", "color_membrane": "#ffd24a", "color_organ": "#4fd1ff", "color_glow": "#ffeb99", "rotation_x": 0.00, "rotation_y": 0.08, "rotation_z": 0.00, "signature": "plasma" },
+    { "stage_id": "stage_023", "color_membrane": "#ffe080", "color_organ": "#ffffff", "color_glow": "#fff5b3", "rotation_x": 0.00, "rotation_y": 0.10, "rotation_z": 0.00, "signature": "plasma" },
+    { "stage_id": "stage_024", "color_membrane": "#88ff88", "color_organ": "#ff66cc", "color_glow": "#c0ffc0", "rotation_x": 0.04, "rotation_y": 0.30, "rotation_z": 0.04, "signature": "flow" },
+
+    { "stage_id": "stage_025", "color_membrane": "#5fb8ff", "color_organ": "#ffffff", "color_glow": "#c0e0ff", "rotation_x": 0.00, "rotation_y": 0.45, "rotation_z": 0.00, "signature": "plasma" },
+    { "stage_id": "stage_026", "color_membrane": "#ffec80", "color_organ": "#ffaa44", "color_glow": "#fff5b3", "rotation_x": 0.02, "rotation_y": 0.08, "rotation_z": 0.02, "signature": "plasma" },
+    { "stage_id": "stage_027", "color_membrane": "#9070ff", "color_organ": "#ffffff", "color_glow": "#c8b0ff", "rotation_x": 0.15, "rotation_y": 0.35, "rotation_z": 0.10, "signature": "tumble" },
+    { "stage_id": "stage_028", "color_membrane": "#3a3070", "color_organ": "#ffd24a", "color_glow": "#a890ff", "rotation_x": 0.18, "rotation_y": 0.42, "rotation_z": 0.18, "signature": "tumble" },
+    { "stage_id": "stage_029", "color_membrane": "#e0e0ff", "color_organ": "#ff8fc8", "color_glow": "#ddddff", "rotation_x": 0.10, "rotation_y": 0.55, "rotation_z": 0.10, "signature": "shimmer" },
+    { "stage_id": "stage_030", "color_membrane": "#ffffff", "color_organ": "#ffd24a", "color_glow": "#ffffff", "rotation_x": 0.00, "rotation_y": 0.20, "rotation_z": 0.00, "signature": "plasma" }
+  ]
+}

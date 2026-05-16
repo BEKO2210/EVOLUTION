@@ -122,6 +122,7 @@ func _test_shader_uniforms_present() -> void:
 	# Spot-check the uniforms the controller writes (P1-010 contract).
 	var required: PackedStringArray = PackedStringArray([
 		"time", "morph", "swim", "click_pos", "click_strength",
+		"body_pulse",
 		"color_membrane", "color_organ", "color_glow",
 	])
 	for u in required:

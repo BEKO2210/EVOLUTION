@@ -16,6 +16,7 @@ shader_parameter/morph = 0.0
 shader_parameter/swim = 0.0
 shader_parameter/click_pos = Vector3(0, 0, 0)
 shader_parameter/click_strength = 0.0
+shader_parameter/body_pulse = 0.0
 shader_parameter/color_membrane = Color(0.0, 1.0, 0.64, 1.0)
 shader_parameter/color_organ = Color(1.0, 0.82, 0.29, 1.0)
 shader_parameter/color_glow = Color(0.31, 0.82, 1.0, 1.0)
