@@ -123,25 +123,51 @@ func _check_tick_system() -> String:
 
 func _check_click_and_upgrade() -> String:
 	# P1-006: simulate a few clicks + a buy, verify GameState changed
-	# accordingly. Reset counts back to zero so the smoke-test leaves
-	# no game-state side-effects on subsequent boots.
-	var dna_before: float = GameState.dna
-	var click_before: int = GameState.total_clicks
+	# accordingly. CRITICAL: this is a boot-time diagnostic; it must NOT
+	# corrupt a player's loaded save. Full snapshot-before / restore-after.
+	#
+	# Mutations caused below:
+	#   ClickSystem.register_click() -> dna, total_dna, lifetime_dna,
+	#                                   total_clicks, total_crits (maybe),
+	#                                   internal combo counter
+	#   GameState.dna = 200.0       -> dna (overwritten before buy)
+	#   UpgradeSystem.buy("auto_001") -> dna, upgrade_counts["auto_001"],
+	#                                    dps + click_power (via recalc_stats)
+	# We snapshot every one of those fields and restore them at the end.
+	# We also reset_combo() to clear ClickSystem's internal counter.
+	var snapshot: Dictionary = {
+		"dna":             GameState.dna,
+		"total_dna":       GameState.total_dna,
+		"lifetime_dna":    GameState.lifetime_dna,
+		"click_power":     GameState.click_power,
+		"dps":             GameState.dps,
+		"total_clicks":    GameState.total_clicks,
+		"total_crits":     GameState.total_crits,
+		"upgrade_counts":  GameState.upgrade_counts.duplicate(true),
+	}
+	# Drive the smoke check from a known click_power baseline so result text
+	# is predictable; snapshot restores it after.
 	GameState.click_power = 1.0
+	var clicks_before: int = GameState.total_clicks
 	ClickSystem.register_click()
 	ClickSystem.register_click()
 	ClickSystem.register_click()
-	var clicks_added: int = GameState.total_clicks - click_before
-	var dna_after_clicks: float = GameState.dna
+	var clicks_added: int = GameState.total_clicks - clicks_before
 	# Buy 1 auto_001 (cost 60). Give DNA for it.
 	GameState.dna = 200.0
 	var bought: bool = UpgradeSystem.buy("auto_001")
 	var dps_after: float = GameState.dps
-	# Cleanup so the live game state isn't polluted by smoke-test.
-	GameState.dna = dna_before
-	GameState.total_clicks = click_before
-	GameState.upgrade_counts.erase("auto_001")
-	UpgradeSystem.recalc_stats()
+	# --- Restore exactly what we snapshotted ---
+	GameState.dna            = snapshot["dna"]
+	GameState.total_dna      = snapshot["total_dna"]
+	GameState.lifetime_dna   = snapshot["lifetime_dna"]
+	GameState.click_power    = snapshot["click_power"]
+	GameState.dps            = snapshot["dps"]
+	GameState.total_clicks   = snapshot["total_clicks"]
+	GameState.total_crits    = snapshot["total_crits"]
+	GameState.upgrade_counts = snapshot["upgrade_counts"]
+	ClickSystem.reset_combo()
+	UpgradeSystem.recalc_stats()  # rebuild dps/click_power from restored counts
 	if clicks_added != 3:
 		return "ClickSystem: FAIL (added %d clicks, expected 3)" % clicks_added
 	if not bought:
