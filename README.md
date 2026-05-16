@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-012 abgeschlossen: GodotSteam-Spike, nur Playtest fehlt)** |
+| Phase | **1 — Engine-Prototyp CODE-COMPLETE** · Playtest (P1-013) ist `docs/playtest-template.md` ready, wartet auf echte Tester |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + 12 Autoloads + alle Game-Systeme + BioNexus 3D-Visual + Greybox UI (HUD + 5 Tabs + Upgrade-Cards + Click-Button) mit Tests (bis P1-011), Steam-Spike + Playtest folgen in P1-012..P1-013 |
+| Godot-Projekt | ✓ Phase 1 komplett: 12 Autoloads + alle Game-Systeme + BioNexus 3D + Greybox UI + GodotSteam-Spike + 11 Test-Suites mit ~120 Assertions. Siehe `docs/phase-1-completion-report.md` für Details |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
