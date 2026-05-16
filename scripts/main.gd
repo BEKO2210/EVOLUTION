@@ -2,16 +2,18 @@ extends Node
 ##
 ## Main bootstrap entry point.
 ##
-## Phase 1 — P1-001 brought the project skeleton, P1-002 registers the
-## six autoload singletons. This script now runs a smoke-test against each
-## autoload on _ready() to satisfy the P1-002 acceptance criterion:
+## Runs a smoke-test against every autoload on _ready() so the bootstrap
+## label gives an immediate visual confirmation that the engine layer is
+## healthy.
 ##
-##   "Autoloads sind im Editor sichtbar. GameState.dna += 1 läuft ohne Error."
-##
-## Real systems land in subsequent tickets:
+## Phase 1 ticket history (delivered):
+##   P1-001 — project skeleton
+##   P1-002 — six autoload singletons
 ##   P1-003 — DataLoader populates from data/*.json
-##   P1-004 — SaveSystem with schema-version + migrations
-##   P1-005 — TickSystem (logic 4 Hz, visual 60 Hz)
+##   P1-004 — SaveSystem with schema-version + migrations + checksum
+##   P1-005 — TickSystem (logic 4 Hz, visual per-frame, periodic auto-save)
+##
+## Still to come:
 ##   P1-006 — ClickSystem + UpgradeSystem
 ##   P1-007 — StageSystem
 ##   P1-008 — PrestigeSystem
@@ -27,8 +29,12 @@ func _ready() -> void:
 	var engine_version: String = Engine.get_version_info().string
 	print("[Evolution] Phase 1 boot — engine %s" % engine_version)
 
-	# --- P1-002 acceptance smoke-test ---------------------------------------
+	# --- Autoload smoke-test (running total through P1-005) -----------------
 	# Each autoload must be reachable and call-safe.
+	# Disable auto-save immediately so this smoke-test never writes to a
+	# real player save slot.
+	TickSystem.set_auto_save_enabled(false)
+
 	var report: PackedStringArray = []
 	report.append("engine %s" % engine_version)
 	report.append(_check_game_state())
@@ -37,11 +43,12 @@ func _ready() -> void:
 	report.append(_check_audio_manager())
 	report.append(_check_steam_api())
 	report.append(_check_telemetry())
+	report.append(_check_tick_system())
 
 	var summary: String = "\n".join(report)
 	print("[Evolution] Autoload smoke-test:\n%s" % summary)
 	if _bootstrap_label:
-		_bootstrap_label.text = "EVOLUTION — Phase 1\nP1-002 autoloads OK\n%s" % summary
+		_bootstrap_label.text = "EVOLUTION — Phase 1\nautoloads OK\n%s" % summary
 
 # --- Smoke checks -----------------------------------------------------------
 
@@ -102,3 +109,13 @@ func _check_telemetry() -> String:
 	# Default opt-in is false, track() must silently drop.
 	Telemetry.track("smoke_test_event", {"phase": 1})
 	return "Telemetry: stub OK, opt_in=%s (real impl in P1-009/Phase-3)" % Telemetry.opt_in
+
+func _check_tick_system() -> String:
+	# P1-005: TickSystem starts running on boot, reading intervals from
+	# data/balance_constants.json. Just verify the configuration is sane.
+	var logic_s: float = TickSystem.get_logic_interval_s()
+	var save_s: float = TickSystem.get_save_interval_s()
+	var running: bool = TickSystem.is_running()
+	if not running:
+		return "TickSystem: FAIL (not running)"
+	return "TickSystem: OK — logic %.2fs / save %.0fs (auto-save off for smoke-test)" % [logic_s, save_s]

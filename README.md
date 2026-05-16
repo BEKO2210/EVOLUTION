@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-004 abgeschlossen: Save-System + Tests)** |
+| Phase | **1 — Engine-Prototyp (P1-005 abgeschlossen: TickSystem + Auto-Save)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + Autoloads + DataLoader + SaveSystem mit Tests (bis P1-004), Systeme folgen in P1-005..P1-013 |
+| Godot-Projekt | ✓ Skelett + 7 Autoloads + DataLoader + SaveSystem + TickSystem mit Tests (bis P1-005), Systeme folgen in P1-006..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen zwei Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen drei Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -132,6 +132,16 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - Import refused bei korruptem External-File
 - `list_slots()` reportet korrekte Metadaten
 - `slot_exists()` + `delete_slot()` arbeiten korrekt
+
+**`tests/test_tick_system.gd`** — TickSystem-Verhalten (~3 s Laufzeit, kein Disk-IO):
+
+- Intervalle werden aus `data/balance_constants.json` geladen (250 ms / 15 s)
+- `logic_tick` feuert mit ~4 Hz (5–12 Ticks pro 2 s)
+- `visual_tick` feuert mehrfach pro 500 ms
+- `visual_tick` ≥ `logic_tick` über das gleiche Intervall
+- `pause()` stoppt beide Ticks vollständig
+- `resume()` startet den Logic-Tick wieder
+- `set_auto_save_enabled()` togglet das Auto-Save-Gate korrekt
 
 Exit-Code 0 = grün, 1 = Failure (Details im Output).
 

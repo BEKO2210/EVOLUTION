@@ -21,6 +21,7 @@ fi
 TESTS=(
     tests/test_data_loader.gd
     tests/test_save_system.gd
+    tests/test_tick_system.gd
 )
 
 FAIL=0
