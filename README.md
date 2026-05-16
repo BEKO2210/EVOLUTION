@@ -26,12 +26,12 @@ Ein meditativer Idle-Clicker, der aus einem einzelnen Proto-Molekül über 30 Ev
 
 | Aspekt | Status |
 |---|---|
-| Phase | **1 — Engine-Prototyp (P1-009 abgeschlossen: AchievementSystem)** |
+| Phase | **1 — Engine-Prototyp (P1-010 abgeschlossen: BioNexus Shader-Port)** |
 | Spielbarer Prototyp | ✓ HTML/Three.js, ein-File (`index.html`), online via GitHub Pages |
 | Engine-Entscheidung | ✓ Godot 4.x (siehe `docs/decisions/ADR-0001-engine-choice.md`) |
 | Game-Design-Document | ✓ v0.1 in `docs/02-gdd.md` |
 | Daten (Stages/Upgrades/etc.) | ✓ extrahiert in `data/*.json` (Phase-1-tauglich) |
-| Godot-Projekt | ✓ Skelett + 12 Autoloads + alle Daten/Save/Tick-Systeme + Click + Upgrade + Stage + Prestige + Achievement mit Tests (bis P1-009), Systeme folgen in P1-010..P1-013 |
+| Godot-Projekt | ✓ Skelett + 12 Autoloads + alle Game-Systeme + BioNexus 3D-Visual (Shader+Scene) mit Tests (bis P1-010), UI + Steam-Spike folgen in P1-011..P1-013 |
 | Steam-Partner-Account | ⬜ Phase 0 (in Bearbeitung) |
 | Steam-Einreichung | ⬜ Phase 5 (geplant) |
 
@@ -106,7 +106,7 @@ Aktueller Stand: **P1-003 abgeschlossen** — Autoload-Singletons + funktionaler
 ./tools/run_tests.sh
 ```
 
-erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen acht Test-Suites:
+erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tools/run_tests.sh`. Aktuell laufen neun Test-Suites:
 
 **`tests/test_data_loader.gd`** — Daten-Layer-Validierung:
 
@@ -158,6 +158,17 @@ erfordert `godot` (4.x stable) auf `$PATH` oder `GODOT_BIN=/pfad/zu/godot ./tool
 - `recalc_stats` produziert korrektes DPS für Auto + Click-Power für Click
 - Meilenstein-Verdopplung wird in DPS reflektiert
 - `upgrade_purchased`-Signal liefert id + new_count + total_cost
+
+**`tests/test_bionexus_scene.gd`** — BioNexus 3D-Visual (Scene + Shader, headless-reachable):
+
+- Shader-Datei lädt + parsed
+- Scene-Datei lädt als PackedScene
+- Scene instanziiert sauber (alle `_ready` Callbacks)
+- MultiMesh hat `instance_count = 4000` (Hard-Cap aus balance_constants.json)
+- `use_colors` + `use_custom_data` enabled (für targetPos/cellType/clusterOffset packing)
+- Per-Instance-Daten sind nach `_seed_instance_data()` populiert
+- `visible_instance_count = 1` bei Stage 1
+- ShaderMaterial accepts alle erwarteten Uniforms (time, morph, swim, click_pos, click_strength, color_membrane/organ/glow)
 
 **`tests/test_achievement_system.gd`** — Deklarative Achievements + Reward-Multiplier:
 

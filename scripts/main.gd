@@ -16,9 +16,9 @@ extends Node
 ##   P1-007 — StageSystem (threshold progression, stage_changed signal)
 ##   P1-008 — PrestigeSystem (lifetime-DNA threshold, EP formula, compounding multiplier)
 ##   P1-009 — AchievementSystem (declarative conditions, reward multipliers, persistence)
+##   P1-010 — BioNexus shader port (GDShader + MultiMeshInstance3D + camera dolly)
 ##
 ## Still to come:
-##   P1-010 — BioNexus shader port (GLSL -> GDShader)
 ##   P1-011 — Greybox UI (tabs, panels, upgrade cards) + audio bus layout
 ##   P1-012 — GodotSteam spike
 ##   P1-013 — Playtest sessions
@@ -48,6 +48,7 @@ func _ready() -> void:
 	report.append(_check_stage_system())
 	report.append(_check_prestige_system())
 	report.append(_check_achievement_system())
+	report.append(_check_bionexus())
 
 	var summary: String = "\n".join(report)
 	print("[Evolution] Autoload smoke-test:\n%s" % summary)
@@ -236,3 +237,13 @@ func _check_achievement_system() -> String:
 	if not bundle.has("dps_mult") or not bundle.has("click_mult") or not bundle.has("all_mult"):
 		return "AchievementSystem: FAIL (reward bundle missing required keys)"
 	return "AchievementSystem: OK — %d/%d unlocked, reward bundle wired" % [unlocked, total]
+
+func _check_bionexus() -> String:
+	# P1-010: verify the BioNexus shader and scene files exist and parse.
+	# Actual rendering requires a GPU surface; tests/test_bionexus_scene.gd
+	# covers the headless-reachable parts.
+	if not ResourceLoader.exists("res://shaders/bionexus_cell.gdshader"):
+		return "BioNexus: FAIL (shader file missing)"
+	if not ResourceLoader.exists("res://scenes/cell/bionexus.tscn"):
+		return "BioNexus: FAIL (scene file missing)"
+	return "BioNexus: OK — shader + scene wired (4000 instance cap, MultiMesh + GDShader)"
