@@ -104,6 +104,26 @@ var _body_pulse: float = 0.0
 # the bacterium signature can use the same wave for both pulse + offset.
 var _swim_phase: float = 0.0
 
+# Active per-stage silhouette ("fibonacci", "rna", "dna", ...). Used to
+# dispatch per-frame shape animations (tail wave, pseudopod wiggle).
+var _active_shape_kind: String = ""
+
+# Bakterium flagellum metadata, set by _shape_rod_flagellum. The animator
+# reads these to overwrite the tail instances each frame with a traveling
+# sine wave (HTML reference: animateBakteriumTail).
+var _tail_start_idx: int = 0
+var _tail_count_anim: int = 0
+var _tail_start_x: float = 0.0
+
+# Amoeba pseudopod metadata, set by _shape_amoeba. The animator wiggles
+# each arm independently with its own phase + extension cycle (HTML
+# reference: animateAmoebaPseudopods).
+var _arm_start_idx: int = 0
+var _arms_n: int = 0
+var _cells_per_arm: int = 0
+var _arm_remainder: int = 0
+var _amoeba_core_r: float = 0.0
+
 func _ready() -> void:
 	_shader_material = material_override as ShaderMaterial
 	# Camera is a sibling of self under the SubViewport.
@@ -307,12 +327,17 @@ func _shape_rod_flagellum(count: int) -> void:
 			x = -body_len * 0.5 + body_r + v * body_len
 			r = body_r
 		multimesh.set_instance_color(i, Color(x, sin(ang) * r, cos(ang) * r, 0.0))
-	# Tail seed — straight line trailing the body. Tail wave animation TODO.
+	# Tail seed — straight line trailing the body. _animate_tail rewrites
+	# these per frame when the active shape is rod_flagellum.
 	var tail_start_x: float = body_len * 0.5 + body_r
 	for i in tail_count:
 		var t: float = float(i) / float(max(1, tail_count - 1))
 		multimesh.set_instance_color(body_count + i,
 			Color(tail_start_x + t * 8.0, 0.0, 0.0, 1.0))
+	# Stash metadata for the per-frame animator.
+	_tail_start_idx = body_count
+	_tail_count_anim = tail_count
+	_tail_start_x = tail_start_x
 
 func _shape_lumpy(count: int) -> void:
 	# Archaea — bumpy spheroid. Fibonacci sphere displaced by deterministic
@@ -361,6 +386,12 @@ func _shape_amoeba(count: int) -> void:
 			multimesh.set_instance_color(write_idx, Color(
 				cos(arm_base_ang) * reach, 0.0, sin(arm_base_ang) * reach, 0.0))
 			write_idx += 1
+	# Stash metadata for the per-frame animator (pseudopod wiggle).
+	_arm_start_idx = core_count
+	_arms_n = arms
+	_cells_per_arm = cells_per_arm
+	_arm_remainder = arm_remainder
+	_amoeba_core_r = r
 
 func _shape_ellipsoid(count: int) -> void:
 	# Paramecium — prolate spheroid (elongated oval). Cilia overlay is a
@@ -392,6 +423,52 @@ func _apply_stage_shape(kind: String, count: int) -> void:
 		"amoeba":        _shape_amoeba(count)
 		"ellipsoid":     _shape_ellipsoid(count)
 		_:               _reseed_organism_shape(count)  # "fibonacci" / unknown
+
+# ----------------------------------------------------------------------------
+# Per-frame shape animations — only run when the active stage has an animated
+# silhouette. Cheap (50-200 set_instance_color calls per frame). Each animator
+# rewrites a sub-range of INSTANCE_COLOR; the rest of the silhouette stays
+# static. Ports of animateBakteriumTail / animateAmoebaPseudopods from HTML
+# rev d244083.
+# ----------------------------------------------------------------------------
+func _animate_active_shape(t: float) -> void:
+	match _active_shape_kind:
+		"rod_flagellum":
+			_animate_tail(t)
+		"amoeba":
+			_animate_pseudopods(t)
+
+func _animate_tail(t: float) -> void:
+	# Sine wave traveling along the tail; amplitude grows toward the tip.
+	for i in _tail_count_anim:
+		var frac: float = float(i) / float(max(1, _tail_count_anim - 1))
+		var x: float = _tail_start_x + frac * 8.0
+		var phase: float = frac * 6.5 - t * 6.0
+		var amp: float = 0.3 + frac * 1.4
+		multimesh.set_instance_color(_tail_start_idx + i, Color(
+			x, sin(phase) * amp, cos(phase * 0.5) * amp * 0.25, 1.0))
+
+func _animate_pseudopods(t: float) -> void:
+	# Each arm has its own base-angle wobble + extension cycle, plus per-cell
+	# lateral wave so the limb feels like it's choosing direction.
+	var idx: int = _arm_start_idx
+	for a in _arms_n:
+		var base_ang: float = float(a) / float(_arms_n) * TAU + sin(t * 0.4 + float(a)) * 0.25
+		var extend: float = 0.55 + 0.45 * sin(t * 0.6 + float(a) * 1.7)
+		var n_per: int = _cells_per_arm + (1 if a < _arm_remainder else 0)
+		var dir_x: float = cos(base_ang)
+		var dir_z: float = sin(base_ang)
+		var perp_x: float = -dir_z
+		var perp_z: float = dir_x
+		for k in n_per:
+			var ft: float = float(k + 1) / float(max(1, n_per))
+			var lateral: float = sin(t * 1.5 + float(a) * 2.0 + ft * 4.0) * 0.4 * ft
+			var reach: float = _amoeba_core_r + ft * (3.5 + extend * 2.5)
+			multimesh.set_instance_color(idx, Color(
+				dir_x * reach + perp_x * lateral,
+				sin(t * 1.2 + float(a) + ft * 2.0) * 0.5 * ft,
+				dir_z * reach + perp_z * lateral, 0.0))
+			idx += 1
 
 # ----------------------------------------------------------------------------
 # Fibonacci-sphere cluster layout — sets per-instance transform for the
@@ -442,6 +519,10 @@ func _on_visual_tick(dt_seconds: float) -> void:
 	var pulse_target: float = _compute_pulse_target(_time)
 	var pulse_step: float = clamp(dt_seconds * 6.0, 0.0, 1.0)
 	_body_pulse = lerp(_body_pulse, pulse_target, pulse_step)
+
+	# Per-frame shape animations (tail wave / pseudopod wiggle). Cheap no-op
+	# for shapes that don't have animated parts.
+	_animate_active_shape(_time)
 
 	# Smooth palette lerp toward the per-stage target — ~1 sec transitions.
 	var pal_step: float = clamp(dt_seconds * 1.5, 0.0, 1.0)
@@ -592,6 +673,7 @@ func _apply_stage_visuals(stage: int) -> void:
 	# the new positions to fill the now-visible instances.
 	var kind: String = String(visual["shape_kind"])
 	var count: int = int(_get_stage_target(stage)["count"])
+	_active_shape_kind = kind
 	_apply_stage_shape(kind, count)
 
 func _get_stage_target(stage: int) -> Dictionary:
