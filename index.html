@@ -92,7 +92,7 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            overflow: hidden;
+            overflow: visible;          /* allow click-info to escape clipping */
             padding: 4px 12px 8px;
             min-height: 0;
         }
@@ -425,17 +425,25 @@
         @keyframes goldenAppear { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
 
         /* Click info — clamped width so very long click-value numbers stay on
-           one line and don't push the cell off-center. */
+           one line. Pinned to z-index 5 + small chip background so the cell
+           or a toast can't visually consume it. */
         .click-info {
             text-align: center;
             margin-top: 4px;
-            z-index: 1;
+            z-index: 5;
+            position: relative;
             font-size: 0.7rem;
             color: var(--text-dim);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 92vw;
+            padding: 3px 10px;
+            background: rgba(8, 11, 20, 0.55);
+            border-radius: 99px;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            flex-shrink: 0;
         }
         .click-info b { color: var(--accent); font-weight: 800; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 
@@ -713,14 +721,14 @@
         }
         .popup-btn:active { transform: scale(0.95); }
 
-        /* Toast (achievement unlock) — pinned just ABOVE the abilities bar so
-           it never covers the stage-progress text at the top (the friend's
-           screenshot showed two milestone toasts sitting right on the
-           "VIRUS · ... BIS PROKARYOT" line). The wrap stacks oldest-on-top
-           via column-reverse so newer messages appear closest to the bar. */
+        /* Toast (achievement unlock) — pinned INSIDE the cell-stage area
+           (above the abilities bar, below the cell) so it never lands on
+           the upgrade list at the bottom of the screen (which the friend's
+           screenshot showed). The wrap stacks oldest-on-top via column-
+           reverse so newer messages appear closest to the bar. */
         .toast-wrap {
-            position: fixed;
-            bottom: calc(170px + env(safe-area-inset-bottom));
+            position: absolute;
+            bottom: 6px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 900;
@@ -750,9 +758,8 @@
         .toast .ic { font-size: 1.2rem; }
         @keyframes toastIn { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         @keyframes toastOut { to{transform:translateY(20px);opacity:0} }
-        /* On taller viewports raise the toast stack so it doesn't crowd the
-           panel content the player is reading. */
-        @media (min-height: 760px) { .toast-wrap { bottom: calc(200px + env(safe-area-inset-bottom)); } }
+        /* The toast-wrap is now inside .main, so positioning is relative to
+           the cell-stage area — no viewport-height tweaks needed. */
         @media (prefers-reduced-motion: reduce) {
             .toast { animation-duration: 0.001ms, 0.001ms; }
         }
@@ -1331,6 +1338,9 @@
     <div class="click-info">
         <span>Klick = </span><b id="clickValue">+1</b><span id="critInfo"> · 5% Crit</span>
     </div>
+    <!-- Toasts live INSIDE main so they pin to the bottom of the cell-stage
+         area instead of (sometimes) landing on the upgrade panel. -->
+    <div class="toast-wrap" id="toastWrap"></div>
 </div>
 
 <div class="abilities" id="abilitiesBar"></div>
@@ -1470,8 +1480,6 @@
     </div>
 </div>
 
-<div class="toast-wrap" id="toastWrap"></div>
-
 <!-- =====================================================================
      HTML-PROTOTYPE SHAPE ROADMAP (per-stage cell visuals)
      ─────────────────────────────────────────────────────────────────────
@@ -1579,10 +1587,10 @@ function getStageShape(stage) {
     const s = Math.max(1, Math.min(30, stage));
 
     // -- Iteration 1: hand-tuned shapes for the subzellulär phase --------
-    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero', anatomy:'none' };
-    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 9.0,  cellScaleHint:'thin', anatomy:'none' };
-    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 11.5, cellScaleHint:'thin', anatomy:'none' };
-    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin', anatomy:'none' };
+    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero',  anatomy:'none', uniform:true };
+    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 5.5,  cellScaleHint:'thin',  anatomy:'none', uniform:true };
+    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 8.0,  cellScaleHint:'thin',  anatomy:'none', uniform:true };
+    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin',  anatomy:'none', uniform:true };
 
     // -- Iteration 2: mikrobiell phase, hand-tuned per stage --------------
     if (s === 5) return { id:'prokaryot', count: 70, morph:1, swim:0, label:'Prokaryot',  shape: shapeProkaryot, naturalRadius: 3.4, cellScaleHint:'micro', anatomy:'none' };
@@ -1620,7 +1628,10 @@ function shapeProtoMolecule(arr, count) {
 }
 function shapeRNAStrand(arr, count) {
     // A single right-handed helix — the visual shorthand for a strand of RNA.
-    const turns = 4.5, length = 16, radius = 1.7;
+    // Wider than a real RNA strand on purpose: must read as a spiral at this
+    // small camera distance (the friend's screenshot showed it as a thin
+    // vertical column when the radius was 1.7).
+    const turns = 4.5, length = 14, radius = 3.0;
     for (let i = 0; i < count; i++) {
         const t = i / Math.max(1, count - 1);
         const a = t * turns * Math.PI * 2;
@@ -1631,7 +1642,9 @@ function shapeRNAStrand(arr, count) {
 }
 function shapeDNAHelix(arr, count) {
     // Two intertwined right-handed strands with base-pair rungs between them.
-    const turns = 3.2, length = 22, radius = 2.6;
+    // Radius bumped from 2.6 → 5.0 so the spiral is unmistakable at the
+    // game's camera distance.
+    const turns = 3.0, length = 20, radius = 5.0;
     const strandFrac = 0.36;
     const halfStrand = Math.max(1, Math.floor(count * strandFrac));
     const rungCount  = Math.max(0, count - 2 * halfStrand);
@@ -2130,11 +2143,33 @@ cellGeo.setAttribute('cellType',      new THREE.InstancedBufferAttribute(cellTyp
 // it actually changes.
 let currentShapeId = null;
 function applyShape(spec) {
-    const id = spec.id + ':' + spec.count;
+    const id = spec.id + ':' + spec.count + (spec.uniform ? ':u' : ':m');
     if (currentShapeId === id) return;
     currentShapeId = id;
     spec.shape(targetPositions, spec.count);
     cellGeo.attributes.targetPos.needsUpdate = true;
+    // Per-shape cellType policy:
+    //   uniform = all membrane (single colour, clean reading) — used for
+    //             the precise geometric shapes (proto, helices, capsid)
+    //             where the random tissue pattern looked mottled.
+    //   default = keep the per-instance pattern set at init (used by the
+    //             organism morph in late stages where tissue variation is
+    //             part of the visual).
+    if (spec.uniform) {
+        for (let i = 0; i < spec.count; i++) cellTypes[i] = 0;
+        cellGeo.attributes.cellType.needsUpdate = true;
+    } else {
+        // Re-randomize on switch BACK to mixed pattern so a player swapping
+        // between stages sees a consistent organism pattern. Deterministic
+        // sequence so it doesn't reshuffle every time.
+        let dirty = false;
+        for (let i = 0; i < spec.count; i++) {
+            const want = (Math.sin(i * 17.731) * 43758.5453);
+            const isOrgan = ((want - Math.floor(want)) < 0.35) ? 1 : 0;
+            if (cellTypes[i] !== isOrgan) { cellTypes[i] = isOrgan; dirty = true; }
+        }
+        if (dirty) cellGeo.attributes.cellType.needsUpdate = true;
+    }
 }
 
 // ===== Anatomy SVG overlay ===============================================
@@ -2235,7 +2270,7 @@ function layoutCluster(count) {
     if (hint === 'hero') {
         cellScale = 6.5;
     } else if (hint === 'thin') {
-        cellScale = 0.65;
+        cellScale = 0.85;
     } else if (hint === 'micro') {
         // Mid-density microbial cluster: enough body to read at a glance,
         // small enough that ~200 cells still feel like discrete organelles
