@@ -55,9 +55,21 @@ func _check_game_state() -> String:
 	return "GameState: %s (dna mutation works)" % ("OK" if ok else "FAIL")
 
 func _check_save_system() -> String:
-	# Stub returns false — that's correct for P1-002.
-	var stub_result: bool = SaveSystem.save(SaveSystem.SLOT_CLOUD)
-	return "SaveSystem: stub %s (real impl in P1-004)" % ("OK" if not stub_result else "UNEXPECTED")
+	# P1-004: SaveSystem is real. Smoke-test a round-trip in a test slot
+	# without touching the player's real saves (slots 0, 1, 2).
+	const SMOKE_SLOT: int = SaveSystem.SLOT_LOCAL_3
+	var pre_existed: bool = SaveSystem.slot_exists(SMOKE_SLOT)
+	if pre_existed:
+		# Don't overwrite an existing real save in slot 3 — skip the smoke test.
+		return "SaveSystem: skipped (slot 3 in use)"
+	var save_ok: bool = SaveSystem.save(SMOKE_SLOT)
+	if not save_ok:
+		return "SaveSystem: save() FAILED"
+	var load_ok: bool = SaveSystem.load_slot(SMOKE_SLOT)
+	SaveSystem.delete_slot(SMOKE_SLOT)
+	if not load_ok:
+		return "SaveSystem: load_slot() FAILED"
+	return "SaveSystem: OK — round-trip in slot 3 (auto-cleaned)"
 
 func _check_data_loader() -> String:
 	# P1-003: load_all() is invoked from DataLoader._ready() at boot.

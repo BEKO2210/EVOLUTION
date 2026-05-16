@@ -20,6 +20,7 @@ fi
 
 TESTS=(
     tests/test_data_loader.gd
+    tests/test_save_system.gd
 )
 
 FAIL=0
