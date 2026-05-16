@@ -1576,11 +1576,36 @@ const MAX_INSTANCES_BUDGET = (CORES <= 4 || MOBILE_UA) ? 1500 : 4000;
 let qualityScale = 1.0; // adjusted by window.BioNexus.setQualityScale()
 const MAX_INSTANCES = MAX_INSTANCES_BUDGET; // hard-cap allocated up front
 const PALETTE = {
-    membrane: new THREE.Color('#00ffa3'), // game accent green
-    organ:    new THREE.Color('#ffd24a'), // game gold (was pink in reference — recolored for brand cohesion)
+    membrane: new THREE.Color('#00ffa3'), // game accent green (default fallback)
+    organ:    new THREE.Color('#ffd24a'), // game gold (organelles / second strand)
     crit:     new THREE.Color('#ff5da2'),
     glow:     new THREE.Color('#4fd1ff'), // game accent-2 cyan
 };
+
+// Per-stage palettes. Each entry colours the cluster differently so each
+// life-form has its own visual identity — no more "everything is green".
+// `membrane` = the bulk cell colour, `organ` = the cellType=1 cells (used
+// as the "second strand" on the DNA helix, "spikes" on the virus, etc),
+// `glow` = the click-shockwave halo. Picked to match the biological mood:
+// primordial gold, RNA crimson, DNA-cyan-+-gold, virus violet, etc.
+const STAGE_PALETTES = {
+    proto:     { membrane: '#fff5b0', organ: '#ffd24a', glow: '#ffae42' },
+    rna:       { membrane: '#ff5da2', organ: '#ff8a3d', glow: '#ff8fc8' },
+    dna:       { membrane: '#4fd1ff', organ: '#ffd24a', glow: '#7df3ff' },
+    virus:     { membrane: '#ab46e0', organ: '#ff5da2', glow: '#dc6bff' },
+    prokaryot: { membrane: '#ffb86b', organ: '#ffd24a', glow: '#ffcb88' },
+    bakterium: { membrane: '#39e0b8', organ: '#4fd1ff', glow: '#7df3ff' },
+    archaea:   { membrane: '#8b6dff', organ: '#c79dff', glow: '#aa88ff' },
+    amoebe:    { membrane: '#b6ff4a', organ: '#fff36a', glow: '#d4ff9c' },
+    paramec:   { membrane: '#62e9ff', organ: '#a0f4ff', glow: '#c7f9ff' },
+    // Late-stage fallback retains the original neon-green identity.
+    organism:  { membrane: '#00ffa3', organ: '#ffd24a', glow: '#4fd1ff' },
+};
+function paletteForSpec(spec) {
+    if (!spec) return STAGE_PALETTES.organism;
+    if (STAGE_PALETTES[spec.id]) return STAGE_PALETTES[spec.id];
+    return STAGE_PALETTES.organism;
+}
 
 // Stage → shape spec. Returns the per-stage configuration used by the
 // renderer: how many instances to draw, what shape they should form, how
@@ -1591,17 +1616,31 @@ function getStageShape(stage) {
     const s = Math.max(1, Math.min(30, stage));
 
     // -- Iteration 1: hand-tuned shapes for the subzellulär phase --------
-    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.2,  cellScaleHint:'hero',  anatomy:'none', uniform:true };
-    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 5.5,  cellScaleHint:'thin',  anatomy:'none', uniform:true };
-    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 8.0,  cellScaleHint:'thin',  anatomy:'none', uniform:true };
-    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin',  anatomy:'none', uniform:true };
+    // Each stage now publishes a per-stage palette key (paletteForSpec uses
+    // spec.id), a rotation triple in radians per second, and a `signature`
+    // hero animation flag (plasma / flow / basepair / throb / breathe /
+    // swim / tumble / hunt / glide) — the renderer dispatches on this in
+    // BioNexus.update().
+    if (s === 1) return { id:'proto',     count:  1, morph:0, swim:0, label:'Solo',     shape: shapeProtoMolecule, naturalRadius: 1.4,  cellScaleHint:'hero',  anatomy:'none',       uniform:true,
+                          rotation:{ y:0.00, x:0.0,  z:0.0  }, signature:'plasma' };
+    if (s === 2) return { id:'rna',       count: 90, morph:1, swim:0, label:'Strang',   shape: shapeRNAStrand,    naturalRadius: 5.5,  cellScaleHint:'thin',  anatomy:'none',       uniform:true,
+                          rotation:{ y:0.55, x:0.0,  z:0.0  }, signature:'flow' };
+    if (s === 3) return { id:'dna',       count:170, morph:1, swim:0, label:'Helix',    shape: shapeDNAHelix,     naturalRadius: 8.0,  cellScaleHint:'thin',  anatomy:'none',       uniform:'dnahelix',
+                          rotation:{ y:0.32, x:0.0,  z:0.0  }, signature:'basepair' };
+    if (s === 4) return { id:'virus',     count: 90, morph:1, swim:0, label:'Kapsid',   shape: shapeVirusCapsid,  naturalRadius: 6.2,  cellScaleHint:'thin',  anatomy:'none',       uniform:'capsid',
+                          rotation:{ y:0.18, x:0.06, z:0.0  }, signature:'throb' };
 
     // -- Iteration 2: mikrobiell phase, hand-tuned per stage --------------
-    if (s === 5) return { id:'prokaryot', count: 70, morph:1, swim:0, label:'Prokaryot',  shape: shapeProkaryot, naturalRadius: 3.4, cellScaleHint:'micro', anatomy:'none' };
-    if (s === 6) return { id:'bakterium', count:130, morph:1, swim:0, label:'Bakterium',  shape: shapeBakterium, animate: animateBakteriumTail, naturalRadius: 6.5, cellScaleHint:'micro', anatomy:'flagellum' };
-    if (s === 7) return { id:'archaea',   count:150, morph:1, swim:0, label:'Archaea',    shape: shapeArchaea,   naturalRadius: 4.6, cellScaleHint:'micro', anatomy:'bumps' };
-    if (s === 8) return { id:'amoebe',    count:220, morph:1, swim:0, label:'Amöbe',      shape: shapeAmoeba,    animate: animateAmoebaPseudopods, naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pseudopods' };
-    if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia' };
+    if (s === 5) return { id:'prokaryot', count: 70, morph:1, swim:0, label:'Prokaryot',  shape: shapeProkaryot, naturalRadius: 3.4, cellScaleHint:'micro', anatomy:'none',       uniform:true,
+                          rotation:{ y:0.10, x:0.0,  z:0.0  }, signature:'breathe' };
+    if (s === 6) return { id:'bakterium', count:130, morph:1, swim:0, label:'Bakterium',  shape: shapeBakterium, animate: animateBakteriumTail, naturalRadius: 6.5, cellScaleHint:'micro', anatomy:'flagellum',  uniform:true,
+                          rotation:{ y:0.0,  x:0.0,  z:0.0  }, signature:'swim' };
+    if (s === 7) return { id:'archaea',   count:150, morph:1, swim:0, label:'Archaea',    shape: shapeArchaea,   naturalRadius: 4.6, cellScaleHint:'micro', anatomy:'bumps',      uniform:true,
+                          rotation:{ y:0.22, x:0.13, z:0.07 }, signature:'tumble' };
+    if (s === 8) return { id:'amoebe',    count:220, morph:1, swim:0, label:'Amöbe',      shape: shapeAmoeba,    animate: animateAmoebaPseudopods, naturalRadius: 6.0, cellScaleHint:'micro', anatomy:'pseudopods', uniform:true,
+                          rotation:{ y:0.06, x:0.0,  z:0.04 }, signature:'hunt' };
+    if (s === 9) return { id:'paramec',   count:200, morph:1, swim:0, label:'Paramecium', shape: shapeParamecium,naturalRadius: 7.5, cellScaleHint:'micro', anatomy:'cilia',      uniform:true,
+                          rotation:{ y:0.18, x:0.0,  z:0.0  }, signature:'glide' };
 
     // -- Fallback: existing cluster→organism progression for stages 10–30 --
     const t = (s - 1) / 29;
@@ -2046,6 +2085,7 @@ uniform vec3 colorMembrane;
 uniform vec3 colorOrgan;
 uniform vec3 colorGlow;
 uniform float time;
+uniform float bodyPulse;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -2060,9 +2100,16 @@ void main() {
         fresnel = smoothstep(0.08, 1.0, rim);
     }
 
+    // Stage signature heartbeat — brightens the whole membrane in sync with
+    // breathe / throb / basepair / plasma animations driven from JS.
+    base *= 1.0 + bodyPulse * 0.45;
+
     vec3 col = base * (fresnel * 1.6 + inner);
     // Click flash — bright cyan halo on cells inside the shockwave
     col += colorGlow * vGlow * 1.4;
+    // Signature heartbeat also leaks a hint of glow colour so a pulse on
+    // a stationary cluster reads as more than just brightness.
+    col += colorGlow * bodyPulse * 0.15;
 
     float alpha = clamp(fresnel + inner + vGlow * 0.6, 0.0, 1.0);
     gl_FragColor = vec4(col, alpha);
@@ -2106,11 +2153,24 @@ const cellMat = new THREE.ShaderMaterial({
         colorMembrane:  { value: PALETTE.membrane.clone() },
         colorOrgan:     { value: PALETTE.organ.clone() },
         colorGlow:      { value: PALETTE.glow.clone() },
+        // bodyPulse: signature animations (breathe/throb/basepair) write a
+        // 0..1 value here; the fragment shader uses it to brighten the
+        // membrane in sync with the heartbeat.
+        bodyPulse:      { value: 0 },
     },
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
 });
+// Smooth-lerp targets for the per-stage palette (avoids hard colour pops on
+// stage transitions). The update loop nudges the live uniforms toward
+// these every frame.
+const targetMembrane = PALETTE.membrane.clone();
+const targetOrgan    = PALETTE.organ.clone();
+const targetGlow     = PALETTE.glow.clone();
+// Signature-driven position offset (used by swim/glide to drift the whole
+// cluster slightly without rewriting per-instance positions).
+const signatureOffset = new THREE.Vector3();
 
 const instanced = new THREE.InstancedMesh(cellGeo, cellMat, MAX_INSTANCES);
 instanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -2147,33 +2207,46 @@ cellGeo.setAttribute('cellType',      new THREE.InstancedBufferAttribute(cellTyp
 // it actually changes.
 let currentShapeId = null;
 function applyShape(spec) {
-    const id = spec.id + ':' + spec.count + (spec.uniform ? ':u' : ':m');
+    const id = spec.id + ':' + spec.count + ':' + (spec.uniform || 'mixed');
     if (currentShapeId === id) return;
     currentShapeId = id;
     spec.shape(targetPositions, spec.count);
     cellGeo.attributes.targetPos.needsUpdate = true;
     // Per-shape cellType policy:
-    //   uniform = all membrane (single colour, clean reading) — used for
-    //             the precise geometric shapes (proto, helices, capsid)
-    //             where the random tissue pattern looked mottled.
-    //   default = keep the per-instance pattern set at init (used by the
-    //             organism morph in late stages where tissue variation is
-    //             part of the visual).
-    if (spec.uniform) {
-        for (let i = 0; i < spec.count; i++) cellTypes[i] = 0;
-        cellGeo.attributes.cellType.needsUpdate = true;
-    } else {
-        // Re-randomize on switch BACK to mixed pattern so a player swapping
-        // between stages sees a consistent organism pattern. Deterministic
-        // sequence so it doesn't reshuffle every time.
-        let dirty = false;
+    //   true       = all membrane (clean single colour)
+    //   'dnahelix' = first half = strand A (0=membrane/cyan), second half =
+    //                strand B (1=organ/gold), rungs (rest) = alternating
+    //   'capsid'   = capsid cells (first 75%) = 0, spike cells = 1
+    //   falsy      = deterministic tissue mix (used by organism morph)
+    let dirty = false;
+    if (spec.uniform === true) {
         for (let i = 0; i < spec.count; i++) {
-            const want = (Math.sin(i * 17.731) * 43758.5453);
-            const isOrgan = ((want - Math.floor(want)) < 0.35) ? 1 : 0;
-            if (cellTypes[i] !== isOrgan) { cellTypes[i] = isOrgan; dirty = true; }
+            if (cellTypes[i] !== 0) { cellTypes[i] = 0; dirty = true; }
         }
-        if (dirty) cellGeo.attributes.cellType.needsUpdate = true;
+    } else if (spec.uniform === 'dnahelix') {
+        // Match shapeDNAHelix's index layout: halfStrand-halfStrand-rungs.
+        const halfStrand = Math.max(1, Math.floor(spec.count * 0.36));
+        for (let i = 0; i < spec.count; i++) {
+            let v;
+            if (i < halfStrand)            v = 0;  // strand A
+            else if (i < 2 * halfStrand)    v = 1;  // strand B
+            else                            v = (i & 1);
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
+    } else if (spec.uniform === 'capsid') {
+        const capsidCount = Math.max(1, Math.floor(spec.count * 0.75));
+        for (let i = 0; i < spec.count; i++) {
+            const v = (i < capsidCount) ? 0 : 1;
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
+    } else {
+        for (let i = 0; i < spec.count; i++) {
+            const r = Math.sin(i * 17.731) * 43758.5453;
+            const v = ((r - Math.floor(r)) < 0.35) ? 1 : 0;
+            if (cellTypes[i] !== v) { cellTypes[i] = v; dirty = true; }
+        }
     }
+    if (dirty) cellGeo.attributes.cellType.needsUpdate = true;
 }
 
 // ===== Anatomy SVG overlay ===============================================
@@ -2405,13 +2478,24 @@ const BioNexus = {
         cellMat.uniforms.swim.value  = targets.swim;
         const phaseEl = document.getElementById('bioPhase');
         if (phaseEl) phaseEl.textContent = targets.label;
-        if (stage !== lastStageApplied) {
-            // Re-tint membrane subtly with stage advancement.
-            const t = (stage - 1) / 29;
-            cellMat.uniforms.colorMembrane.value
-                .copy(PALETTE.membrane)
-                .lerp(PALETTE.glow, t * 0.4);
-        }
+
+        // Per-stage palette — replaces the old "everything is green, lerp
+        // toward cyan" code. Stored target colours; the update() loop lerps
+        // the live uniforms toward these so colour changes ease in rather
+        // than snap. Also drives the anatomy-layer CSS color so the SVG
+        // flagellum / cilia tint to match.
+        const pal = paletteForSpec(targets);
+        targetMembrane.set(pal.membrane);
+        targetOrgan   .set(pal.organ);
+        targetGlow    .set(pal.glow);
+        const sl = document.getElementById('anatomyLayer');
+        if (sl) sl.style.color = pal.membrane;
+
+        // Reset rotation accumulator on shape change so each stage starts
+        // from neutral orientation.
+        instanced.rotation.set(0, 0, 0);
+        signatureOffset.set(0, 0, 0);
+        cellMat.uniforms.bodyPulse.value = 0;
         lastStageApplied = stage;
     },
 
@@ -2463,6 +2547,80 @@ const BioNexus = {
             targets.animate(targetPositions, targets.count, time);
             cellGeo.attributes.targetPos.needsUpdate = true;
         }
+
+        // ----- Per-stage signature animation dispatcher --------------------
+        // Each stage owns a single "hero" animation. Centralising the
+        // dispatch here keeps the per-stage specs declarative — they just
+        // name the signature, this switch implements it.
+        let pulseTarget = 0;
+        const sig = targets && targets.signature;
+        if (sig === 'plasma') {
+            // Stage 1 Proto-Molekül — primordial energy core. Continuous
+            // breathing pulse at ~1.6 Hz with a sharp re-attack so it feels
+            // alive rather than smooth-cosine boring.
+            const phase = time * 1.6;
+            pulseTarget = Math.pow(Math.max(0, Math.sin(phase)), 2.2);
+        } else if (sig === 'flow') {
+            // Stage 2 RNA-Strang — rotation provides motion; pulse is faint
+            // and ride-along so the strand reads as gliding ribbon.
+            pulseTarget = 0.18 + 0.12 * Math.sin(time * 1.1);
+        } else if (sig === 'basepair') {
+            // Stage 3 DNA-Helix — base pairs visibly pulse along the ladder.
+            // Faster, double-beat rhythm (sin² + offset second beat).
+            const a = Math.sin(time * 2.2);
+            const b = Math.sin(time * 2.2 + 1.9);
+            pulseTarget = 0.5 * (a*a + b*b);
+        } else if (sig === 'throb') {
+            // Stage 4 Virus — slow ominous throb, like it's "loading".
+            const phase = time * 0.85;
+            const s = Math.sin(phase);
+            pulseTarget = s > 0 ? s*s : 0;
+        } else if (sig === 'breathe') {
+            // Stage 5 Prokaryot — calm, near-sinusoidal living-thing breath.
+            pulseTarget = 0.5 + 0.5 * Math.sin(time * 0.9);
+            pulseTarget *= 0.6; // tone down — the rotation does the work
+        } else if (sig === 'swim') {
+            // Stage 6 Bakterium — drift forward and back in lockstep with
+            // the flagellum waveform. signatureOffset displaces the whole
+            // mesh; tail animation already lives in animateBakteriumTail.
+            const swimPhase = Math.sin(time * 6.0); // matches tail freq
+            signatureOffset.x = -swimPhase * 0.5; // counter-impulse to tail
+            // Body pulse on the kick downstroke
+            pulseTarget = 0.4 * Math.max(0, -swimPhase);
+        } else if (sig === 'tumble') {
+            // Stage 7 Archaea — rotation is the show. No extra body pulse.
+            pulseTarget = 0;
+        } else if (sig === 'hunt') {
+            // Stage 8 Amöbe — pulse on the inhale (gulp) phase of the
+            // pseudopod cycle from animateAmoebaPseudopods.
+            pulseTarget = 0.3 * (0.5 + 0.5 * Math.sin(time * 0.6 + 1.5));
+        } else if (sig === 'glide') {
+            // Stage 9 Paramecium — slow forward glide. Cilia animate in CSS.
+            signatureOffset.x = Math.sin(time * 0.6) * 1.5;
+            signatureOffset.y = Math.sin(time * 0.4) * 0.3;
+            pulseTarget = 0;
+        }
+        // Lerp the body-pulse uniform smoothly so changes between stages
+        // ease in (avoids a "pop" the instant the signature changes).
+        const bp = cellMat.uniforms.bodyPulse;
+        bp.value += (pulseTarget - bp.value) * Math.min(1, dt * 6);
+
+        // ----- Per-stage rotation -----------------------------------------
+        // Apply spec.rotation to the InstancedMesh (cheap — single matrix).
+        if (targets && targets.rotation) {
+            instanced.rotation.x += (targets.rotation.x || 0) * dt;
+            instanced.rotation.y += (targets.rotation.y || 0) * dt;
+            instanced.rotation.z += (targets.rotation.z || 0) * dt;
+        }
+        // Apply signature offset (swim drift / paramecium glide).
+        instanced.position.lerp(signatureOffset, Math.min(1, dt * 4));
+
+        // ----- Smooth palette lerp ----------------------------------------
+        // Stage-palette colours interpolate over ~1 sec so transitions feel
+        // organic instead of snapping.
+        cellMat.uniforms.colorMembrane.value.lerp(targetMembrane, Math.min(1, dt * 1.5));
+        cellMat.uniforms.colorOrgan   .value.lerp(targetOrgan,    Math.min(1, dt * 1.5));
+        cellMat.uniforms.colorGlow    .value.lerp(targetGlow,     Math.min(1, dt * 1.5));
 
         // Smoothly chase morph/swim (in case stage changed between frames).
         const um = cellMat.uniforms.morph;
