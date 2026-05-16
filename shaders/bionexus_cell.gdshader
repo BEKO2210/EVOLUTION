@@ -24,6 +24,12 @@ uniform float swim : hint_range(0.0, 1.0) = 0.0;
 uniform vec3  click_pos = vec3(0.0);
 uniform float click_strength = 0.0;
 
+// Stage-signature heartbeat (0..1). Written by bionexus.gd per frame based on
+// the active stage's signature animation (plasma / breathe / throb / swim /
+// hunt / glide / basepair / flow / tumble / shimmer). Mirrors the HTML
+// prototype's bodyPulse uniform so both renderers feel the same.
+uniform float body_pulse : hint_range(0.0, 1.0) = 0.0;
+
 // --- Palette ---------------------------------------------------------------
 uniform vec3 color_membrane : source_color = vec3(0.0, 1.0, 0.64);  // accent green
 uniform vec3 color_organ    : source_color = vec3(1.0, 0.82, 0.29); // gold
@@ -135,9 +141,16 @@ void fragment() {
 		fresnel = smoothstep(0.08, 1.0, rim);
 	}
 
+	// Stage-signature heartbeat — brightens membrane in sync with the active
+	// per-stage animation (driven from bionexus.gd, mirrors HTML bodyPulse).
+	base *= 1.0 + body_pulse * 0.45;
+
 	vec3 col = base * (fresnel * 1.6 + inner);
 	// Click flash — bright cyan halo on cells inside the shockwave.
 	col += color_glow * v_glow * 1.4;
+	// Signature heartbeat leaks a hint of glow colour so a pulse on a still
+	// cluster reads as more than just brightness.
+	col += color_glow * body_pulse * 0.15;
 
 	float alpha = clamp(fresnel + inner + v_glow * 0.6, 0.0, 1.0);
 

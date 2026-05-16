@@ -39,6 +39,10 @@ func _run_all() -> void:
 	_test_lookups_return_real_data()
 	_test_lookups_safe_on_miss()
 	_test_stage_by_tier_helper()
+	_test_stage_visuals_present_for_every_stage()
+	_test_stage_visuals_signature_allowlisted()
+	_test_stage_visuals_colors_are_hex()
+	_test_stage_visual_lookups()
 
 # ----------------------------------------------------------------------------
 # Tests
@@ -51,6 +55,7 @@ func _test_loads_all_files() -> void:
 
 func _test_expected_item_counts() -> void:
 	_assert_eq(DataLoader.stages.size(), 30, "stages count")
+	_assert_eq(DataLoader.stage_visuals.size(), 30, "stage_visuals count")
 	_assert_eq(DataLoader.upgrades_auto.size(), 30, "upgrades_auto count")
 	_assert_eq(DataLoader.upgrades_click.size(), 30, "upgrades_click count")
 	_assert_eq(DataLoader.research.size(), 12, "research count")
@@ -165,6 +170,54 @@ func _test_stage_by_tier_helper() -> void:
 	_assert(s1 != null and String(s1["id"]) == "stage_001", "tier 1 should be stage_001")
 	var s30: Variant = DataLoader.get_stage_by_tier(30)
 	_assert(s30 != null and String(s30["id"]) == "stage_030", "tier 30 should be stage_030")
+
+# ----------------------------------------------------------------------------
+# stage_visuals coverage (P2 cell-visuals work, mirrors HTML PR #30)
+# ----------------------------------------------------------------------------
+
+func _test_stage_visuals_present_for_every_stage() -> void:
+	# Cross-table check: every stage must have a matching stage_visual.
+	for s in DataLoader.stages:
+		var sid: String = String(s["id"])
+		var v: Variant = DataLoader.get_stage_visual(sid)
+		_assert(v != null, "stage '%s' has no stage_visual entry" % sid)
+
+func _test_stage_visuals_signature_allowlisted() -> void:
+	for v in DataLoader.stage_visuals:
+		var sig: String = String(v["signature"])
+		_assert(
+			sig in DataLoader.STAGE_VISUAL_SIGNATURES,
+			"stage_visual '%s' has unknown signature '%s'" % [v["stage_id"], sig])
+
+func _test_stage_visuals_colors_are_hex() -> void:
+	for v in DataLoader.stage_visuals:
+		for k in ["color_membrane", "color_organ", "color_glow"]:
+			var col_str: String = String(v[k])
+			# Constructing Color from "#rrggbb" should not crash and should
+			# yield a non-default Color (catches typos that parsed as black).
+			var c := Color(col_str)
+			# The hex regex is enforced at load time; here we just verify the
+			# string round-trips cleanly into a Godot Color.
+			_assert(
+				col_str.length() == 7 and col_str.begins_with("#"),
+				"stage_visual '%s' %s '%s' is not a 7-char '#rrggbb'" % [v["stage_id"], k, col_str])
+			# All-zero color would mean the hex was unparseable.
+			_assert(
+				c.r + c.g + c.b > 0.0,
+				"stage_visual '%s' %s parsed to all-black — likely invalid hex" % [v["stage_id"], k])
+
+func _test_stage_visual_lookups() -> void:
+	# By stage_id
+	var v1: Variant = DataLoader.get_stage_visual("stage_001")
+	_assert(v1 != null, "get_stage_visual('stage_001') returned null")
+	_assert(String(v1["signature"]) == "plasma", "stage_001 signature should be 'plasma'")
+	# By tier
+	_assert(DataLoader.get_stage_visual_by_tier(0) == null, "tier 0 visual should be null")
+	_assert(DataLoader.get_stage_visual_by_tier(31) == null, "tier 31 visual should be null")
+	var v30: Variant = DataLoader.get_stage_visual_by_tier(30)
+	_assert(v30 != null and String(v30["stage_id"]) == "stage_030", "tier 30 visual should be stage_030")
+	# Miss
+	_assert(DataLoader.get_stage_visual("nonexistent") == null, "stage_visual miss should be null")
 
 # ----------------------------------------------------------------------------
 # Tiny assertion helpers

@@ -33,11 +33,18 @@ signal data_validation_failed(file: String, reason: String)
 # ----------------------------------------------------------------------------
 const PATH_BALANCE: String = "res://data/balance_constants.json"
 const PATH_STAGES: String = "res://data/stages.json"
+const PATH_STAGE_VISUALS: String = "res://data/stage_visuals.json"
 const PATH_UPGRADES_AUTO: String = "res://data/upgrades_auto.json"
 const PATH_UPGRADES_CLICK: String = "res://data/upgrades_click.json"
 const PATH_RESEARCH: String = "res://data/research.json"
 const PATH_ABILITIES: String = "res://data/abilities.json"
 const PATH_ACHIEVEMENTS: String = "res://data/achievements.json"
+
+# Signature-animation kinds the renderer dispatches on (see bionexus.gd).
+const STAGE_VISUAL_SIGNATURES: PackedStringArray = PackedStringArray([
+	"plasma", "flow", "basepair", "throb", "breathe",
+	"swim", "tumble", "hunt", "glide", "shimmer", "none",
+])
 
 # ----------------------------------------------------------------------------
 # ENUM ALLOWLISTS
@@ -89,6 +96,7 @@ const ACHIEVEMENT_REWARD_KEYS: PackedStringArray = PackedStringArray([
 # DATA TABLES (populated by load_all)
 # ----------------------------------------------------------------------------
 var stages: Array = []
+var stage_visuals: Array = []
 var upgrades_auto: Array = []
 var upgrades_click: Array = []
 var research: Array = []
@@ -98,6 +106,7 @@ var balance: Dictionary = {}
 
 # ID -> Dictionary lookups for fast access.
 var _stage_by_id: Dictionary = {}
+var _stage_visual_by_id: Dictionary = {}
 var _upgrade_auto_by_id: Dictionary = {}
 var _upgrade_click_by_id: Dictionary = {}
 var _research_by_id: Dictionary = {}
@@ -126,6 +135,7 @@ func load_all() -> bool:
 	var ok: bool = true
 	ok = _load_balance(PATH_BALANCE) and ok
 	ok = _load_stages(PATH_STAGES) and ok
+	ok = _load_stage_visuals(PATH_STAGE_VISUALS) and ok
 	ok = _load_upgrades_auto(PATH_UPGRADES_AUTO) and ok
 	ok = _load_upgrades_click(PATH_UPGRADES_CLICK) and ok
 	ok = _load_research(PATH_RESEARCH) and ok
@@ -145,6 +155,16 @@ func get_stage_by_tier(tier: int) -> Variant:
 	if tier < 1 or tier > stages.size():
 		return null
 	return stages[tier - 1]
+
+func get_stage_visual(stage_id: String) -> Variant:
+	return _stage_visual_by_id.get(stage_id, null)
+
+func get_stage_visual_by_tier(tier: int) -> Variant:
+	# stage_visuals is keyed on stage_id, but loaded in the same tier-order as
+	# stages, so the index mapping is direct.
+	if tier < 1 or tier > stage_visuals.size():
+		return null
+	return stage_visuals[tier - 1]
 
 func get_upgrade_auto(upgrade_id: String) -> Variant:
 	return _upgrade_auto_by_id.get(upgrade_id, null)
@@ -171,6 +191,7 @@ func get_last_errors() -> PackedStringArray:
 
 func _reset() -> void:
 	stages.clear()
+	stage_visuals.clear()
 	upgrades_auto.clear()
 	upgrades_click.clear()
 	research.clear()
@@ -178,6 +199,7 @@ func _reset() -> void:
 	achievements.clear()
 	balance.clear()
 	_stage_by_id.clear()
+	_stage_visual_by_id.clear()
 	_upgrade_auto_by_id.clear()
 	_upgrade_click_by_id.clear()
 	_research_by_id.clear()
@@ -278,6 +300,52 @@ func _load_stages(path: String) -> bool:
 	if stages.size() > 0 and float(stages[0]["threshold_dna"]) != 0.0:
 		_fail(path, "first stage threshold_dna must be 0 (game starts there)")
 		return false
+	return true
+
+func _load_stage_visuals(path: String) -> bool:
+	var root: Variant = _read_json(path)
+	if root == null or not _require_dict(path, root):
+		return false
+	var items: Variant = _require_items_array(path, root)
+	if items == null:
+		return false
+	for i in items.size():
+		var item = items[i]
+		if not item is Dictionary:
+			_fail(path, "items[%d] is not a dict" % i)
+			return false
+		var ctx: String = "items[%d]" % i
+		if not _require_field(path, item, "stage_id", [TYPE_STRING], ctx): return false
+		for c in ["color_membrane", "color_organ", "color_glow"]:
+			if not _require_field(path, item, c, [TYPE_STRING], ctx): return false
+			if not _is_valid_hex_color(String(item[c])):
+				_fail(path, "%s: %s='%s' is not a 6-digit hex color (e.g. '#ff5da2')" % [ctx, c, item[c]])
+				return false
+		for r in ["rotation_x", "rotation_y", "rotation_z"]:
+			if not _require_field(path, item, r, [TYPE_INT, TYPE_FLOAT], ctx): return false
+		if not _require_field(path, item, "signature", [TYPE_STRING], ctx): return false
+		var sig: String = String(item["signature"])
+		if not (sig in STAGE_VISUAL_SIGNATURES):
+			_fail(path, "%s: signature '%s' not in allowlist" % [ctx, sig])
+			return false
+		var sid: String = item["stage_id"]
+		if _stage_visual_by_id.has(sid):
+			_fail(path, "%s: duplicate stage_id '%s'" % [ctx, sid])
+			return false
+		stage_visuals.append(item)
+		_stage_visual_by_id[sid] = item
+	return true
+
+func _is_valid_hex_color(s: String) -> bool:
+	if s.length() != 7 or s[0] != "#":
+		return false
+	for i in range(1, 7):
+		var ch: String = s[i]
+		var is_digit: bool = ch >= "0" and ch <= "9"
+		var is_lower: bool = ch >= "a" and ch <= "f"
+		var is_upper: bool = ch >= "A" and ch <= "F"
+		if not (is_digit or is_lower or is_upper):
+			return false
 	return true
 
 func _load_upgrades_generic(path: String, target_array: Array, target_lookup: Dictionary, power_field: String) -> bool:
@@ -445,6 +513,15 @@ func _validate_cross_table() -> bool:
 		var after: Variant = u["unlock_after_id"]
 		if after != null and not _upgrade_click_by_id.has(after):
 			_fail(PATH_UPGRADES_CLICK, "upgrade '%s': unlock_after_id '%s' does not exist" % [u["id"], after])
+			return false
+	# Every stage must have a matching stage_visual entry — the renderer
+	# falls back to the last-applied palette if a visual is missing, but we
+	# want a hard failure at load time so a missing tier never silently
+	# uses the wrong colours.
+	for s in stages:
+		var sid: String = s["id"]
+		if not _stage_visual_by_id.has(sid):
+			_fail(PATH_STAGE_VISUALS, "stage '%s' has no matching stage_visuals entry" % sid)
 			return false
 	return true
 
