@@ -38,10 +38,10 @@ const STAGE_TARGETS: Array = [
 	{"count":  240, "morph": 1.0, "swim": 0.0, "cam_z": 18.0},  # tier 10 — plant tissue (hex grid)
 	{"count":  300, "morph": 1.0, "swim": 0.0, "cam_z": 18.0},  # tier 11 — sponge (porous sphere)
 	{"count":  280, "morph": 1.0, "swim": 0.0, "cam_z": 20.0},  # tier 12 — hydra (body + tentacles)
-	{"count": 2800, "morph": 0.5, "swim": 0.0, "cam_z": 58.0},  # tier 13 — start of cluster ramp
-	{"count": 3000, "morph": 0.7, "swim": 0.2, "cam_z": 60.0},
-	{"count": 3200, "morph": 0.85, "swim": 0.4, "cam_z": 62.0},
-	{"count": 3400, "morph": 1.0, "swim": 0.5, "cam_z": 64.0},  # tier 16
+	{"count":  300, "morph": 1.0, "swim": 0.0, "cam_z": 22.0},  # tier 13 — flatworm ribbon
+	{"count":  280, "morph": 1.0, "swim": 0.0, "cam_z": 20.0},  # tier 14 — insect (body + legs)
+	{"count":  340, "morph": 1.0, "swim": 0.0, "cam_z": 22.0},  # tier 15 — fish (body + fins)
+	{"count": 3400, "morph": 1.0, "swim": 0.5, "cam_z": 64.0},  # tier 16 — cluster ramp resumes
 	{"count": 3500, "morph": 1.0, "swim": 0.6, "cam_z": 64.0},
 	{"count": 3600, "morph": 1.0, "swim": 0.7, "cam_z": 64.0},
 	{"count": 3700, "morph": 1.0, "swim": 0.8, "cam_z": 64.0},
@@ -132,6 +132,18 @@ var _hydra_per_tent: int = 0
 var _hydra_extra: int = 0
 var _hydra_body_len: float = 0.0
 var _hydra_body_r: float = 0.0
+
+# Flatworm metadata, set by _shape_worm. Animator displaces the whole body
+# along Y with a travelling sine wave (slither).
+var _worm_count: int = 0
+var _worm_length: float = 0.0
+var _worm_half_w: float = 0.0
+
+# Fish metadata, set by _shape_fish. Animator sweeps the caudal-fin cells
+# left/right for the tail-beat (body cells stay put).
+var _fish_tail_start: int = 0
+var _fish_tail_count: int = 0
+var _fish_body_len: float = 0.0
 
 func _ready() -> void:
 	_shader_material = material_override as ShaderMaterial
@@ -527,6 +539,122 @@ func _shape_hydra(count: int) -> void:
 	_hydra_body_len = body_len
 	_hydra_body_r = body_r
 
+func _shape_worm(count: int) -> void:
+	# Plattwurm — long thin ribbon (flatworm). Most cells distributed along
+	# X-length; flat in Y; slim Z thickness. Body slithers per-frame in
+	# _animate_worm.
+	var length: float = 18.0
+	var half_w: float = 1.2
+	for i in count:
+		var t: float = float(i) / float(max(1, count - 1))
+		var x: float = (t - 0.5) * length
+		# Cross-section: golden-angle spread on a flat ellipse so the
+		# ribbon is wider in Z than tall in Y (worm seen from above).
+		var ang: float = float(i) * 2.39996323
+		var rad_seed: float = sqrt(float(i % 9) / 9.0)
+		var taper: float = sin(t * PI) * 0.8 + 0.2  # narrower at head + tail
+		var y: float = cos(ang) * rad_seed * half_w * 0.35 * taper
+		var z: float = sin(ang) * rad_seed * half_w * taper
+		multimesh.set_instance_color(i, Color(x, y, z, 0.0))
+	_worm_count = count
+	_worm_length = length
+	_worm_half_w = half_w
+
+func _shape_insect(count: int) -> void:
+	# Insekt — segmented body (head, thorax, abdomen) + 6 legs + 2 antennae.
+	# Body uses ~65% of cells, legs ~30%, antennae ~5%. Static silhouette.
+	var body_n: int = int(float(count) * 0.65)
+	var leg_n: int = int(float(count) * 0.30)
+	var antenna_n: int = count - body_n - leg_n
+	# Three body segments, golden-angle distributed within each ellipsoid.
+	var seg_offsets: Array = [-3.2, 0.0, 3.6]  # head, thorax, abdomen along X
+	var seg_radii: Array = [1.1, 1.5, 1.9]      # abdomen biggest
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in body_n:
+		var seg: int = i % 3
+		var local: int = i / 3
+		var sub_count: int = body_n / 3 + (1 if (body_n % 3) > seg else 0)
+		var y_norm: float = (0.0 if sub_count <= 1
+			else 1.0 - (float(local) / float(sub_count - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y_norm * y_norm))
+		var th: float = phi * float(i)
+		var r: float = float(seg_radii[seg])
+		multimesh.set_instance_color(i, Color(
+			float(seg_offsets[seg]) + cos(th) * cr * r * 0.6,
+			y_norm * r,
+			sin(th) * cr * r, 0.0))
+	# 6 legs from thorax (middle segment), 3 per side. Each leg = a short
+	# line of cells angled down-and-out.
+	var legs: int = 6
+	var per_leg: int = leg_n / legs
+	var leg_extra: int = leg_n - per_leg * legs
+	var write_idx: int = body_n
+	for li in legs:
+		var side: float = (-1.0 if li < 3 else 1.0)  # left or right
+		var slot: int = li % 3                       # which of 3 legs on this side
+		# Attach point along thorax: spread the 3 legs across thorax X.
+		var attach_x: float = float(seg_offsets[1]) + (float(slot) - 1.0) * 1.0
+		var n: int = per_leg + (1 if li < leg_extra else 0)
+		for k in n:
+			var u: float = float(k + 1) / float(max(1, n))
+			# Leg extends outward (Z) and downward (-Y), with mild knee bend.
+			var ext_z: float = side * (1.0 + u * 2.2)
+			var ext_y: float = -u * 1.8 - sin(u * PI) * 0.4
+			multimesh.set_instance_color(write_idx, Color(
+				attach_x, ext_y, ext_z, 1.0))  # organ-colour highlight for legs
+			write_idx += 1
+	# Antennae — 2 short sprays forward from head.
+	for k in antenna_n:
+		var u: float = float(k) / float(max(1, antenna_n - 1))
+		var side: float = (-1.0 if (k % 2) == 0 else 1.0)
+		multimesh.set_instance_color(write_idx, Color(
+			float(seg_offsets[0]) - 0.8 - u * 1.5,
+			0.6 + u * 1.0,
+			side * (0.4 + u * 0.6), 1.0))
+		write_idx += 1
+
+func _shape_fish(count: int) -> void:
+	# Fisch — streamlined body (prolate ellipsoid) + caudal fin (triangle
+	# in XY plane) + dorsal fin (triangle on +Y). Tail cells get rewritten
+	# per frame by _animate_fish_tail; body + dorsal stay put.
+	var tail_n: int = int(float(count) * 0.12)
+	var dorsal_n: int = int(float(count) * 0.08)
+	var body_n: int = count - tail_n - dorsal_n
+	var body_len: float = 9.5
+	var body_h: float = 2.0
+	var body_w: float = 1.6
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	for i in body_n:
+		var y_norm: float = (0.0 if body_n <= 1
+			else 1.0 - (float(i) / float(body_n - 1)) * 2.0)
+		var cr: float = sqrt(max(0.0, 1.0 - y_norm * y_norm))
+		var th: float = phi * float(i)
+		# Body tapers toward head (+X) and tail (-X) — pinch ends.
+		var taper: float = pow(cr, 0.7)
+		multimesh.set_instance_color(i, Color(
+			y_norm * body_len * 0.5,
+			cos(th) * taper * body_h,
+			sin(th) * taper * body_w, 0.0))
+	# Dorsal fin — triangle on +Y above body's midpoint.
+	for k in dorsal_n:
+		var t: float = float(k) / float(max(1, dorsal_n - 1))
+		# triangle spans X roughly [-1.5, 0.5], peak height at ~Y=3.5
+		var rib: float = sin(t * PI)
+		multimesh.set_instance_color(body_n + k, Color(
+			-1.5 + t * 2.0, body_h + rib * 1.6, 0.0, 0.0))
+	# Caudal-fin seed positions — triangle behind the body. Animator sweeps
+	# these left/right; we just lay them flat here.
+	var tail_start: int = body_n + dorsal_n
+	for k in tail_n:
+		var t: float = float(k) / float(max(1, tail_n - 1))
+		var rib: float = (t - 0.5) * 2.0  # -1..+1 vertical spread
+		multimesh.set_instance_color(tail_start + k, Color(
+			-body_len * 0.5 - 0.5 - abs(rib) * 0.8,
+			rib * 2.0, 0.0, 1.0))
+	_fish_tail_start = tail_start
+	_fish_tail_count = tail_n
+	_fish_body_len = body_len
+
 # Dispatches to the per-shape generator. Called on stage transition AFTER
 # _layout_cluster has set per-instance transforms for the new count.
 func _apply_stage_shape(kind: String, count: int) -> void:
@@ -544,6 +672,9 @@ func _apply_stage_shape(kind: String, count: int) -> void:
 		"plant":         _shape_plant(count)
 		"sponge":        _shape_sponge(count)
 		"hydra":         _shape_hydra(count)
+		"worm":          _shape_worm(count)
+		"insect":        _shape_insect(count)
+		"fish":          _shape_fish(count)
 		_:               _reseed_organism_shape(count)  # "fibonacci" / unknown
 
 # ----------------------------------------------------------------------------
@@ -561,6 +692,10 @@ func _animate_active_shape(t: float) -> void:
 			_animate_pseudopods(t)
 		"hydra":
 			_animate_hydra_tentacles(t)
+		"worm":
+			_animate_worm(t)
+		"fish":
+			_animate_fish_tail(t)
 
 func _animate_tail(t: float) -> void:
 	# Sine wave traveling along the tail; amplitude grows toward the tip.
@@ -593,6 +728,39 @@ func _animate_pseudopods(t: float) -> void:
 				sin(t * 1.2 + float(a) + ft * 2.0) * 0.5 * ft,
 				dir_z * reach + perp_z * lateral, 0.0))
 			idx += 1
+
+func _animate_worm(t: float) -> void:
+	# Slither — sine wave traveling along the body length displaces Y.
+	# Wavelength ~ body length / 2, speed ~ 1.5 cycles/sec.
+	if _worm_count <= 0:
+		return
+	for i in _worm_count:
+		var u: float = float(i) / float(max(1, _worm_count - 1))
+		var x: float = (u - 0.5) * _worm_length
+		# Same cross-section seed as _shape_worm — keep cells coherent.
+		var ang: float = float(i) * 2.39996323
+		var rad_seed: float = sqrt(float(i % 9) / 9.0)
+		var taper: float = sin(u * PI) * 0.8 + 0.2
+		# Slither: amplitude scales with body taper so head/tail wag less.
+		var wave: float = sin(u * PI * 2.5 - t * 4.5) * 1.4 * taper
+		var y: float = cos(ang) * rad_seed * _worm_half_w * 0.35 * taper + wave
+		var z: float = sin(ang) * rad_seed * _worm_half_w * taper
+		multimesh.set_instance_color(i, Color(x, y, z, 0.0))
+
+func _animate_fish_tail(t: float) -> void:
+	# Caudal-fin sweep — entire tail group rotates around X-axis through
+	# the body's tail-attach point. Pure Z-shift suffices visually (the
+	# fin's vertical spread is preserved from the seed positions).
+	if _fish_tail_count <= 0:
+		return
+	var sweep: float = sin(t * 6.0) * 2.2
+	for k in _fish_tail_count:
+		var ft: float = float(k) / float(max(1, _fish_tail_count - 1))
+		var rib: float = (ft - 0.5) * 2.0
+		# Re-derive seed X (same formula as _shape_fish) so we don't drift.
+		var seed_x: float = -_fish_body_len * 0.5 - 0.5 - abs(rib) * 0.8
+		multimesh.set_instance_color(_fish_tail_start + k, Color(
+			seed_x, rib * 2.0, sweep * (1.0 - abs(rib) * 0.3), 1.0))
 
 func _animate_hydra_tentacles(t: float) -> void:
 	# Each tentacle has its own phase — coordinated but not synchronised.
