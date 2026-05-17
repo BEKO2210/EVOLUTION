@@ -35,10 +35,10 @@ const STAGE_TARGETS: Array = [
 	{"count":  350, "morph": 1.0, "swim": 0.0, "cam_z": 14.0},  # tier 7 — archaea lumpy
 	{"count":  400, "morph": 1.0, "swim": 0.0, "cam_z": 16.0},  # tier 8 — amoeba + arms
 	{"count":  450, "morph": 1.0, "swim": 0.0, "cam_z": 22.0},  # tier 9 — paramecium ellipsoid
-	{"count": 1600, "morph": 0.0, "swim": 0.0, "cam_z": 50.0},  # tier 10 — back to cluster aesthetic
-	{"count": 2100, "morph": 0.1, "swim": 0.0, "cam_z": 54.0},
-	{"count": 2500, "morph": 0.3, "swim": 0.0, "cam_z": 56.0},  # tier 12
-	{"count": 2800, "morph": 0.5, "swim": 0.0, "cam_z": 58.0},
+	{"count":  240, "morph": 1.0, "swim": 0.0, "cam_z": 18.0},  # tier 10 — plant tissue (hex grid)
+	{"count":  300, "morph": 1.0, "swim": 0.0, "cam_z": 18.0},  # tier 11 — sponge (porous sphere)
+	{"count":  280, "morph": 1.0, "swim": 0.0, "cam_z": 20.0},  # tier 12 — hydra (body + tentacles)
+	{"count": 2800, "morph": 0.5, "swim": 0.0, "cam_z": 58.0},  # tier 13 — start of cluster ramp
 	{"count": 3000, "morph": 0.7, "swim": 0.2, "cam_z": 60.0},
 	{"count": 3200, "morph": 0.85, "swim": 0.4, "cam_z": 62.0},
 	{"count": 3400, "morph": 1.0, "swim": 0.5, "cam_z": 64.0},  # tier 16
@@ -123,6 +123,15 @@ var _arms_n: int = 0
 var _cells_per_arm: int = 0
 var _arm_remainder: int = 0
 var _amoeba_core_r: float = 0.0
+
+# Hydra tentacle metadata, set by _shape_hydra. Per-frame animator waves
+# each tentacle with its own phase (HTML reference: animateHydraTentacles).
+var _hydra_tent_start: int = 0
+var _hydra_tents: int = 0
+var _hydra_per_tent: int = 0
+var _hydra_extra: int = 0
+var _hydra_body_len: float = 0.0
+var _hydra_body_r: float = 0.0
 
 func _ready() -> void:
 	_shader_material = material_override as ShaderMaterial
@@ -408,6 +417,116 @@ func _shape_ellipsoid(count: int) -> void:
 		multimesh.set_instance_color(i, Color(
 			cos(th) * cr * len_x, y * rad_y, sin(th) * cr * rad_z, 0.0))
 
+func _shape_plant(count: int) -> void:
+	# Pflanzenzelle — hexagonal-grid tissue with chloroplast-style organ
+	# cells sprinkled inside. cellType=1 for ~1-in-5 cells via deterministic
+	# sin*cos hash (matches HTML's uniform:'plant' policy).
+	var cols: int = 11
+	var rows: int = 9
+	var spacing: float = 1.55
+	var dx: float = spacing
+	var dy: float = spacing * sqrt(3.0) * 0.5
+	var i: int = 0
+	for r in rows:
+		if i >= count:
+			break
+		var y_pos: float = (float(r) - float(rows - 1) * 0.5) * dy
+		var x_offset: float = (dx * 0.5 if (r % 2) == 1 else 0.0)
+		# Trim row width so the grid reads roughly hexagonal, not boxy.
+		var trim: int = (1 if abs(float(r) - float(rows - 1) * 0.5) >= 3.0 else 0)
+		var c: int = trim
+		while c < cols - trim and i < count:
+			var x_pos: float = (float(c) - float(cols - 1) * 0.5) * dx + x_offset
+			var jx: float = sin(float(i) * 12.9898) * 0.12
+			var jy: float = cos(float(i) * 78.233) * 0.12
+			var jz: float = sin(float(i) * 39.346) * 0.6
+			# Chloroplast pattern — same hash as HTML so the tissue motif matches.
+			var hash: float = sin(float(i) * 9.371) * cos(float(i) * 4.123)
+			var ct: float = 1.0 if hash > 0.35 else 0.0
+			multimesh.set_instance_color(i, Color(x_pos + jx, y_pos + jy, jz, ct))
+			i += 1
+			c += 1
+	# Any leftover instances: pack as inner cells with a deterministic
+	# scatter (no RandomNumberGenerator — keeps the tissue stable across
+	# runs unlike the HTML which uses Math.random for the fallback).
+	while i < count:
+		var a: float = float(i) * 2.39996323
+		var rad: float = (float(i % 7) + 1.0) * 0.6
+		var hash: float = sin(float(i) * 9.371) * cos(float(i) * 4.123)
+		var ct: float = 1.0 if hash > 0.35 else 0.0
+		multimesh.set_instance_color(i, Color(
+			cos(a) * rad, sin(a) * rad,
+			sin(float(i) * 39.346) * 0.6, ct))
+		i += 1
+
+func _shape_sponge(count: int) -> void:
+	# Schwamm — porous Fibonacci sphere. Cells where the deterministic noise
+	# exceeds the threshold are skipped (those gaps become the oscula). The
+	# noise is stable per-index so the same holes appear every re-apply.
+	var r: float = 4.5
+	var phi: float = PI * (3.0 - sqrt(5.0))
+	var i: int = 0
+	var idx: int = 0
+	var attempts: int = 0
+	var modulus: int = count + 64
+	while i < count and attempts < count * 4:
+		var y: float = 1.0 - (float(idx % modulus) / float(modulus)) * 2.0
+		var cr: float = sqrt(max(0.0, 1.0 - y * y))
+		var th: float = phi * float(idx)
+		idx += 1
+		attempts += 1
+		var n: float = sin(float(idx) * 3.13) * 0.5 + sin(float(idx) * 7.7) * 0.5
+		if n > 0.55:
+			continue  # pore — skip
+		multimesh.set_instance_color(i, Color(
+			cos(th) * cr * r, y * r, sin(th) * cr * r, 0.0))
+		i += 1
+	# If we exhausted attempts before filling, collapse the rest at origin.
+	while i < count:
+		multimesh.set_instance_color(i, Color(0.0, 0.0, 0.0, 0.0))
+		i += 1
+
+func _shape_hydra(count: int) -> void:
+	# Hydra — tubular body (cylinder) + 6 radial tentacles from the top.
+	# Tentacles get rewritten per frame by _animate_hydra_tentacles.
+	var tents: int = 6
+	var body_frac: float = 0.55
+	var body_count: int = int(float(count) * body_frac)
+	var tent_count: int = count - body_count
+	var per_tent: int = int(float(tent_count) / float(tents))
+	var extra: int = tent_count - per_tent * tents
+	var body_len: float = 8.0
+	var body_r: float = 1.6
+	# Body — golden-angle wrap so cells spread evenly on the cylinder surface.
+	for i in body_count:
+		var u: float = (0.5 if body_count <= 1
+			else float(i) / float(body_count - 1))
+		var ang: float = fmod(float(i) * 2.39996323, TAU)
+		var y: float = (u - 0.5) * body_len
+		var bulge: float = 1.0 + 0.25 * sin(u * PI)
+		multimesh.set_instance_color(i, Color(
+			sin(ang) * body_r * bulge, y, cos(ang) * body_r * bulge, 0.0))
+	# Tentacle seed positions — straight out the top of the body.
+	var idx: int = body_count
+	for t in tents:
+		var base_ang: float = float(t) / float(tents) * TAU
+		var n: int = per_tent + (1 if t < extra else 0)
+		for k in n:
+			var u: float = float(k + 1) / float(n)
+			var reach: float = body_r + u * 4.5
+			multimesh.set_instance_color(idx, Color(
+				sin(base_ang) * reach,
+				body_len * 0.5 + u * 1.2,
+				cos(base_ang) * reach, 0.0))
+			idx += 1
+	# Stash metadata for the per-frame animator.
+	_hydra_tent_start = body_count
+	_hydra_tents = tents
+	_hydra_per_tent = per_tent
+	_hydra_extra = extra
+	_hydra_body_len = body_len
+	_hydra_body_r = body_r
+
 # Dispatches to the per-shape generator. Called on stage transition AFTER
 # _layout_cluster has set per-instance transforms for the new count.
 func _apply_stage_shape(kind: String, count: int) -> void:
@@ -422,6 +541,9 @@ func _apply_stage_shape(kind: String, count: int) -> void:
 		"lumpy":         _shape_lumpy(count)
 		"amoeba":        _shape_amoeba(count)
 		"ellipsoid":     _shape_ellipsoid(count)
+		"plant":         _shape_plant(count)
+		"sponge":        _shape_sponge(count)
+		"hydra":         _shape_hydra(count)
 		_:               _reseed_organism_shape(count)  # "fibonacci" / unknown
 
 # ----------------------------------------------------------------------------
@@ -437,6 +559,8 @@ func _animate_active_shape(t: float) -> void:
 			_animate_tail(t)
 		"amoeba":
 			_animate_pseudopods(t)
+		"hydra":
+			_animate_hydra_tentacles(t)
 
 func _animate_tail(t: float) -> void:
 	# Sine wave traveling along the tail; amplitude grows toward the tip.
@@ -468,6 +592,26 @@ func _animate_pseudopods(t: float) -> void:
 				dir_x * reach + perp_x * lateral,
 				sin(t * 1.2 + float(a) + ft * 2.0) * 0.5 * ft,
 				dir_z * reach + perp_z * lateral, 0.0))
+			idx += 1
+
+func _animate_hydra_tentacles(t: float) -> void:
+	# Each tentacle has its own phase — coordinated but not synchronised.
+	# Wave amplitude grows toward the tentacle tip. Tentacles also bob
+	# vertically at a different frequency so they don't look mechanical.
+	var idx: int = _hydra_tent_start
+	for ti in _hydra_tents:
+		var base_ang: float = float(ti) / float(_hydra_tents) * TAU
+		var phase: float = t * 1.1 + float(ti) * 0.9
+		var n: int = _hydra_per_tent + (1 if ti < _hydra_extra else 0)
+		var perp_ang: float = base_ang + PI * 0.5
+		for k in n:
+			var u: float = float(k + 1) / float(max(1, n))
+			var reach: float = _hydra_body_r + u * 4.5
+			var wave: float = sin(phase + u * 3.2) * 0.8 * u
+			multimesh.set_instance_color(idx, Color(
+				sin(base_ang) * reach + sin(perp_ang) * wave,
+				_hydra_body_len * 0.5 + u * 1.2 + sin(phase * 0.7 + u * 2.0) * 0.35 * u,
+				cos(base_ang) * reach + cos(perp_ang) * wave, 0.0))
 			idx += 1
 
 # ----------------------------------------------------------------------------

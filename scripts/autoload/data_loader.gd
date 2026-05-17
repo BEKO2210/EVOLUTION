@@ -51,6 +51,7 @@ const STAGE_VISUAL_SIGNATURES: PackedStringArray = PackedStringArray([
 const STAGE_VISUAL_SHAPE_KINDS: PackedStringArray = PackedStringArray([
 	"fibonacci", "proto", "rna", "dna", "capsid",
 	"rod", "rod_flagellum", "lumpy", "amoeba", "ellipsoid",
+	"plant", "sponge", "hydra",
 ])
 
 # ----------------------------------------------------------------------------
