@@ -8,7 +8,8 @@
   "shape_kind_allowlist": [
     "fibonacci", "proto", "rna", "dna", "capsid",
     "rod", "rod_flagellum", "lumpy", "amoeba", "ellipsoid",
-    "plant", "sponge", "hydra"
+    "plant", "sponge", "hydra",
+    "worm", "insect", "fish"
   ],
   "items": [
     { "stage_id": "stage_001", "shape_kind": "proto",         "color_membrane": "#fff5b0", "color_organ": "#ffd24a", "color_glow": "#ffae42", "rotation_x": 0.00, "rotation_y": 0.00, "rotation_z": 0.00, "signature": "plasma" },
@@ -24,10 +25,10 @@
     { "stage_id": "stage_010", "shape_kind": "plant",     "color_membrane": "#7fdf6c", "color_organ": "#ffd24a", "color_glow": "#b4ff8a", "rotation_x": 0.00, "rotation_y": 0.08, "rotation_z": 0.00, "signature": "breathe" },
     { "stage_id": "stage_011", "shape_kind": "sponge",    "color_membrane": "#5ac8a8", "color_organ": "#ff8fc8", "color_glow": "#9affe0", "rotation_x": 0.04, "rotation_y": 0.05, "rotation_z": 0.02, "signature": "breathe" },
     { "stage_id": "stage_012", "shape_kind": "hydra",     "color_membrane": "#3fb6c4", "color_organ": "#ff5da2", "color_glow": "#9affe0", "rotation_x": 0.00, "rotation_y": 0.05, "rotation_z": 0.00, "signature": "hunt" },
-    { "stage_id": "stage_013", "shape_kind": "fibonacci", "color_membrane": "#a8c068", "color_organ": "#ffe080", "color_glow": "#c8ffef", "rotation_x": 0.00, "rotation_y": 0.05, "rotation_z": 0.00, "signature": "glide" },
-    { "stage_id": "stage_014", "shape_kind": "fibonacci", "color_membrane": "#c98a3a", "color_organ": "#ffb84a", "color_glow": "#ffd28a", "rotation_x": 0.04, "rotation_y": 0.18, "rotation_z": 0.00, "signature": "throb" },
+    { "stage_id": "stage_013", "shape_kind": "worm",      "color_membrane": "#a8c068", "color_organ": "#ffe080", "color_glow": "#c8ffef", "rotation_x": 0.00, "rotation_y": 0.05, "rotation_z": 0.00, "signature": "glide" },
+    { "stage_id": "stage_014", "shape_kind": "insect",    "color_membrane": "#c98a3a", "color_organ": "#ffb84a", "color_glow": "#ffd28a", "rotation_x": 0.00, "rotation_y": 0.06, "rotation_z": 0.00, "signature": "throb" },
 
-    { "stage_id": "stage_015", "shape_kind": "fibonacci", "color_membrane": "#5fa5c8", "color_organ": "#c8e0ff", "color_glow": "#88ccff", "rotation_x": 0.00, "rotation_y": 0.12, "rotation_z": 0.04, "signature": "swim" },
+    { "stage_id": "stage_015", "shape_kind": "fish",      "color_membrane": "#5fa5c8", "color_organ": "#c8e0ff", "color_glow": "#88ccff", "rotation_x": 0.00, "rotation_y": 0.04, "rotation_z": 0.00, "signature": "swim" },
     { "stage_id": "stage_016", "shape_kind": "fibonacci", "color_membrane": "#6cc8a0", "color_organ": "#ffd28a", "color_glow": "#a8e8c8", "rotation_x": 0.00, "rotation_y": 0.08, "rotation_z": 0.00, "signature": "breathe" },
     { "stage_id": "stage_017", "shape_kind": "fibonacci", "color_membrane": "#8c9858", "color_organ": "#ffd24a", "color_glow": "#d0cfff", "rotation_x": 0.05, "rotation_y": 0.04, "rotation_z": 0.03, "signature": "tumble" },
     { "stage_id": "stage_018", "shape_kind": "fibonacci", "color_membrane": "#c87c4a", "color_organ": "#ffe080", "color_glow": "#ffd28a", "rotation_x": 0.02, "rotation_y": 0.20, "rotation_z": 0.00, "signature": "glide" },
